@@ -12,7 +12,7 @@ const PhantomGrid = dynamic(() => import('@/components/Grid/PhantomGrid'), { ssr
 
 const MAX_PREFETCH = 300; // cap how many liked songs feed the grid
 
-export default function LandingPage({ burst = true }: { burst?: boolean }) {
+export default function LandingPage({ reveal = true }: { reveal?: boolean }) {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error } = useLikedSongs();
   const { query, setQuery, results: searchResults, isLoading: searchLoading } = useSearch();
   const { playTrack, currentTrack, deviceId } = usePlayer();
@@ -47,8 +47,8 @@ export default function LandingPage({ burst = true }: { burst?: boolean }) {
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-[#080808]">
       {/* WebGL draggable sphere grid lives at z-0 behind everything */}
-      {songs.length > 0 && (
-        <PhantomGrid songs={songs} onPlay={handlePlay} currentTrackId={currentTrack?.id} burst={burst} />
+      {songs.length > 0 && reveal && (
+        <PhantomGrid songs={songs} onPlay={handlePlay} currentTrackId={currentTrack?.id} burst />
       )}
 
       <header className="absolute top-0 left-0 right-0 z-30">

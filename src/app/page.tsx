@@ -64,15 +64,11 @@ function LoginScreen({ error }: { error?: string }) {
 
 export default function Home() {
   const [introComplete, setIntroComplete] = useState(false);
-  const [burst, setBurst] = useState(false);
 
   // Safety net: never leave the user stuck on the logo if the intro
   // animation fails to fire its completion callback for any reason.
   useEffect(() => {
-    const t = setTimeout(() => {
-      setBurst(true);
-      setIntroComplete(true);
-    }, 6000);
+    const t = setTimeout(() => setIntroComplete(true), 5000);
     return () => clearTimeout(t);
   }, []);
 
@@ -96,14 +92,13 @@ export default function Home() {
 
   return (
     <>
-      {/* Content mounts under the intro overlay so the library fetches during
-          the swirl — no dead "loading" gap once the logo bursts. */}
-      {isAuthenticated && <LandingPage burst={burst} />}
+      {/* LandingPage mounts under the overlay so the library *data* fetches
+          during the swirl (lightweight network), but the heavy WebGL grid is
+          gated on `reveal` so it doesn't block the intro animation. */}
+      {isAuthenticated && <LandingPage reveal={introComplete} />}
       {!authLoading && !isAuthenticated && <LoginScreen error={urlError} />}
 
-      {!introComplete && (
-        <LogoIntro onBurst={() => setBurst(true)} onComplete={() => setIntroComplete(true)} />
-      )}
+      {!introComplete && <LogoIntro onComplete={() => setIntroComplete(true)} />}
     </>
   );
 }
