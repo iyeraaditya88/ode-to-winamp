@@ -52,16 +52,20 @@ interface TileData {
   contentIndex: number; // current song index displayed
   targetScale: number;
   scale: number;
+  baseOpacity: number;
 }
+
+const ENTRANCE_DURATION = 1.3; // seconds for the burst-into-tiles reveal
 
 interface GridSceneProps {
   songs: SpotifyTrack[];
   onPlay: (track: SpotifyTrack) => void;
   currentTrackId?: string;
   distortionRef: React.MutableRefObject<number>;
+  burst: boolean;
 }
 
-function GridScene({ songs, onPlay, currentTrackId, distortionRef }: GridSceneProps) {
+function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst }: GridSceneProps) {
   const { viewport, size, camera, gl } = useThree();
   const getTexture = useTextureCache();
   const groupRef = useRef<THREE.Group>(null);
@@ -76,6 +80,7 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef }: GridScenePr
   const pointerNorm = useRef({ x: 0, y: 0 });
   const ambient = useRef({ x: 0, y: 0 });
   const hoveredTile = useRef<number>(-1);
+  const entranceStart = useRef<number>(-1); // clock time the burst reveal began
 
   // Build the recycled tile pool sized to cover the viewport + margin.
   const cols = Math.ceil(viewport.width / STRIDE) + 4;
@@ -103,7 +108,7 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef }: GridScenePr
         });
         const mesh = new THREE.Mesh(geom, material);
         mesh.userData.poolIndex = out.length;
-        out.push({ mesh, material, col: c, row: r, contentIndex: -1, targetScale: 1, scale: 1 });
+        out.push({ mesh, material, col: c, row: r, contentIndex: -1, targetScale: 1, scale: 1, baseOpacity: 0 });
       }
     }
     return out;
@@ -237,6 +242,12 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef }: GridScenePr
   useFrame((state) => {
     const time = state.clock.elapsedTime;
     let playingPos: { x: number; y: number; scale: number } | null = null;
+
+    // Entrance: once the logo bursts, explode tiles outward from the center.
+    if (burst && entranceStart.current < 0) entranceStart.current = time;
+    const globalP =
+      entranceStart.current < 0 ? 0 : Math.min(1, (time - entranceStart.current) / ENTRANCE_DURATION);
+    const maxDist = Math.max(1, Math.hypot(viewport.width / 2, viewport.height / 2));
     // Inertia: keep gliding after release, damping velocity toward 0 at 0.1.
     if (!dragging.current) {
       pan.current.x += vel.current.x;
@@ -271,8 +282,18 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef }: GridScenePr
       let y = posMod(t.row * STRIDE + oy, totalH);
       if (y > totalH / 2) y -= totalH;
 
-      t.mesh.position.x = x;
-      t.mesh.position.y = y;
+      // Per-tile entrance easing — outer tiles arrive slightly later, so the
+      // whole field blooms outward from the center like the logo bursting.
+      let ent = 1;
+      if (globalP < 1) {
+        const dist = Math.hypot(x, y);
+        const delay = (dist / maxDist) * 0.35;
+        const localP = Math.min(1, Math.max(0, (globalP - delay) / (1 - 0.35)));
+        ent = 1 - Math.pow(1 - localP, 3); // easeOutCubic
+      }
+
+      t.mesh.position.x = x * ent;
+      t.mesh.position.y = y * ent;
 
       // Recover the logical infinite cell coordinate to pick stable content.
       const cellX = Math.round((x - ox) / STRIDE);
@@ -295,14 +316,15 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef }: GridScenePr
       const isPlaying = currentTrackId && songs[t.contentIndex]?.id === currentTrackId;
       t.targetScale = isPlaying ? 1.14 : isHovered ? 1.12 : 1;
       t.scale = THREE.MathUtils.lerp(t.scale, t.targetScale, 0.12);
-      t.mesh.scale.setScalar(t.scale);
+      t.mesh.scale.setScalar(t.scale * ent);
 
       // Dim everything a little more when something is playing so it pops.
       const anyPlaying = !!currentTrackId;
       const op = isPlaying ? 1 : isHovered ? 1 : anyPlaying ? 0.78 : 0.92;
-      t.material.opacity = THREE.MathUtils.lerp(t.material.opacity, op, 0.1);
+      t.baseOpacity = THREE.MathUtils.lerp(t.baseOpacity, op, 0.1);
+      t.material.opacity = t.baseOpacity * ent;
 
-      if (isPlaying) playingPos = { x, y, scale: t.scale };
+      if (isPlaying) playingPos = { x: x * ent, y: y * ent, scale: t.scale * ent };
     }
 
     // Position + pulse the glow halo behind the playing tile.
@@ -329,9 +351,10 @@ interface PhantomGridProps {
   songs: SpotifyTrack[];
   onPlay: (track: SpotifyTrack) => void;
   currentTrackId?: string;
+  burst?: boolean;
 }
 
-export default function PhantomGrid({ songs, onPlay, currentTrackId }: PhantomGridProps) {
+export default function PhantomGrid({ songs, onPlay, currentTrackId, burst = true }: PhantomGridProps) {
   const distortionRef = useRef(0.12);
   const [hint, setHint] = useState(true);
 
@@ -355,6 +378,7 @@ export default function PhantomGrid({ songs, onPlay, currentTrackId }: PhantomGr
           onPlay={onPlay}
           currentTrackId={currentTrackId}
           distortionRef={distortionRef}
+          burst={burst}
         />
         <EffectComposer>
           <LensDistortion distortionRef={distortionRef} />
