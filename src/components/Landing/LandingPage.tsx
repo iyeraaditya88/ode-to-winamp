@@ -1,42 +1,31 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useLikedSongs } from '@/hooks/useLikedSongs';
 import { useSearch } from '@/hooks/useSearch';
 import { usePlayer } from '@/contexts/PlayerContext';
-import SongCard from './SongCard';
 import SearchBar from './SearchBar';
 import type { SpotifyTrack } from '@/types/spotify';
 
-const containerVariant = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.06 } },
-};
+const PhantomGrid = dynamic(() => import('@/components/Grid/PhantomGrid'), { ssr: false });
+
+const MAX_PREFETCH = 300; // cap how many liked songs feed the grid
 
 export default function LandingPage() {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error } = useLikedSongs();
   const { query, setQuery, results: searchResults, isLoading: searchLoading } = useSearch();
   const { playTrack, currentTrack, deviceId } = usePlayer();
   const [searchOpen, setSearchOpen] = useState(false);
-  const sentinelRef = useRef<HTMLDivElement>(null);
 
   const songs: SpotifyTrack[] = data?.pages.flatMap((p) => p.items.map((i) => i.track)) ?? [];
 
+  // Eagerly pull more pages so the infinite grid has a rich pool of tiles.
   useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-          fetchNextPage();
-        }
-      },
-      { rootMargin: '400px' }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+    if (hasNextPage && !isFetchingNextPage && songs.length < MAX_PREFETCH) {
+      fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, songs.length, fetchNextPage]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -56,8 +45,13 @@ export default function LandingPage() {
   const total = data?.pages[0]?.total ?? 0;
 
   return (
-    <div className="min-h-screen bg-[#080808] pb-24">
-      <header className="sticky top-0 z-30 border-b border-white/5 bg-[#080808]/80 backdrop-blur-md">
+    <div className="relative h-screen w-screen overflow-hidden bg-[#080808]">
+      {/* WebGL draggable sphere grid lives at z-0 behind everything */}
+      {songs.length > 0 && (
+        <PhantomGrid songs={songs} onPlay={handlePlay} currentTrackId={currentTrack?.id} />
+      )}
+
+      <header className="absolute top-0 left-0 right-0 z-30">
         <div className="mx-auto max-w-screen-2xl px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <svg width="24" height="24" viewBox="0 0 80 80" fill="none">
@@ -72,11 +66,11 @@ export default function LandingPage() {
 
           <div className="flex items-center gap-4">
             {total > 0 && (
-              <span className="text-xs text-white/25 font-mono">{total} liked songs</span>
+              <span className="text-xs text-white/25 font-mono hidden sm:inline">{total} liked songs</span>
             )}
             <button
               onClick={() => setSearchOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-sm border border-white/10 text-white/40 hover:text-white/70 hover:border-white/20 transition-colors text-xs font-mono"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-sm border border-white/10 bg-black/30 backdrop-blur-sm text-white/40 hover:text-white/70 hover:border-white/20 transition-colors text-xs font-mono"
             >
               <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
@@ -93,59 +87,29 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-screen-2xl px-6 pt-8">
-        {!deviceId && (
-          <div className="mb-6 rounded-sm border border-[#00b4b4]/20 bg-[#00b4b4]/5 px-4 py-3 text-xs text-[#00b4b4]/70 font-mono">
-            Initializing player… Open Spotify on another device to ensure Premium is active.
+      {!deviceId && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-30 rounded-sm border border-[#00b4b4]/20 bg-black/50 backdrop-blur-sm px-4 py-2 text-xs text-[#00b4b4]/70 font-mono">
+          Initializing player…
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-8 w-8 rounded-full border-2 border-white/10 border-t-[#00b4b4] animate-spin" />
+            <p className="text-xs text-white/30 font-mono tracking-widest uppercase">Loading your library</p>
           </div>
-        )}
+        </div>
+      )}
 
-        {isLoading && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-            {Array.from({ length: 18 }).map((_, i) => (
-              <div key={i} className="aspect-square rounded-sm bg-white/5 animate-pulse" />
-            ))}
-          </div>
-        )}
-
-        {error && (
-          <div className="flex items-center justify-center py-24 text-white/30 text-sm">
-            Failed to load liked songs.{' '}
-            <a href="/api/auth/login" className="ml-2 text-[#00b4b4] hover:underline">
-              Reconnect Spotify
-            </a>
-          </div>
-        )}
-
-        {!isLoading && songs.length > 0 && (
-          <motion.div
-            variants={containerVariant}
-            initial="hidden"
-            animate="show"
-            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3"
-          >
-            {songs.map((track, i) => (
-              <SongCard
-                key={`${track.id}-${i}`}
-                track={track}
-                index={i}
-                isPlaying={currentTrack?.id === track.id}
-                onPlay={handlePlay}
-              />
-            ))}
-          </motion.div>
-        )}
-
-        <div ref={sentinelRef} className="h-1" />
-
-        {isFetchingNextPage && (
-          <div className="flex justify-center py-8">
-            <div className="h-1 w-24 bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full w-1/2 bg-[#00b4b4]/50 rounded-full animate-pulse" />
-            </div>
-          </div>
-        )}
-      </main>
+      {error && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center text-white/30 text-sm">
+          Failed to load liked songs.{' '}
+          <a href="/api/auth/login" className="ml-2 text-[#00b4b4] hover:underline">
+            Reconnect Spotify
+          </a>
+        </div>
+      )}
 
       <SearchBar
         isOpen={searchOpen}
