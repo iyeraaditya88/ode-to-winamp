@@ -10,7 +10,7 @@ import type { SpotifyTrack } from '@/types/spotify';
 
 const PhantomGrid = dynamic(() => import('@/components/Grid/PhantomGrid'), { ssr: false });
 
-const MAX_PREFETCH = 300; // cap how many liked songs feed the grid
+const MAX_PREFETCH = 200; // cap how many liked songs feed the grid
 
 interface LandingPageProps {
   burst?: boolean;
@@ -22,15 +22,28 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
   const { query, setQuery, results: searchResults, isLoading: searchLoading } = useSearch();
   const { playTrack, currentTrack, deviceId } = usePlayer();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [frozenSongs, setFrozenSongs] = useState<SpotifyTrack[] | null>(null);
 
   const songs: SpotifyTrack[] = data?.pages.flatMap((p) => p.items.map((i) => i.track)) ?? [];
 
-  // Eagerly pull more pages so the infinite grid has a rich pool of tiles.
+  // Freeze the tile pool once the library is loaded (or at burst, whichever is
+  // first). The grid maps tiles via index % length, so a *growing* length would
+  // remap every tile and churn textures — the visible pulse. Freezing stops it.
   useEffect(() => {
-    if (hasNextPage && !isFetchingNextPage && songs.length < MAX_PREFETCH) {
+    if (frozenSongs || songs.length === 0) return;
+    if (songs.length >= MAX_PREFETCH || !hasNextPage || burst) {
+      setFrozenSongs(songs);
+    }
+  }, [frozenSongs, songs, hasNextPage, burst]);
+
+  const gridSongs = frozenSongs ?? songs;
+
+  // Eagerly pull more pages so the grid has a rich pool — but stop once frozen.
+  useEffect(() => {
+    if (!frozenSongs && hasNextPage && !isFetchingNextPage && songs.length < MAX_PREFETCH) {
       fetchNextPage();
     }
-  }, [hasNextPage, isFetchingNextPage, songs.length, fetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage, songs.length, fetchNextPage, frozenSongs]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -44,7 +57,7 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
   }, [searchOpen]);
 
   const handlePlay = (track: SpotifyTrack) => {
-    playTrack(track, songs);
+    playTrack(track, gridSongs);
   };
 
   const total = data?.pages[0]?.total ?? 0;
@@ -52,9 +65,9 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-[#080808]">
       {/* WebGL draggable sphere grid lives at z-0 behind everything */}
-      {songs.length > 0 && (
+      {gridSongs.length > 0 && (
         <PhantomGrid
-          songs={songs}
+          songs={gridSongs}
           onPlay={handlePlay}
           currentTrackId={currentTrack?.id}
           burst={burst}
