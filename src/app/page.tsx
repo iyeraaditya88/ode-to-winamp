@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useQuery } from '@tanstack/react-query';
 import LandingPage from '@/components/Landing/LandingPage';
@@ -64,6 +64,13 @@ function LoginScreen({ error }: { error?: string }) {
 
 export default function Home() {
   const [introComplete, setIntroComplete] = useState(false);
+
+  // Safety net: never leave the user stuck on the logo if the intro
+  // animation fails to fire its completion callback for any reason.
+  useEffect(() => {
+    const t = setTimeout(() => setIntroComplete(true), 5000);
+    return () => clearTimeout(t);
+  }, []);
 
   const { data: authData, isLoading: authLoading } = useQuery({
     queryKey: ['auth-check'],

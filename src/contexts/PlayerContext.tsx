@@ -193,8 +193,23 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (window.Spotify) initPlayer();
-    else window.onSpotifyWebPlaybackSDKReady = initPlayer;
+
+    // Define the global callback BEFORE the SDK script loads, otherwise the
+    // SDK throws "onSpotifyWebPlaybackSDKReady is not defined" on load.
+    window.onSpotifyWebPlaybackSDKReady = () => {
+      initPlayer();
+    };
+
+    if (window.Spotify) {
+      initPlayer();
+    } else if (!document.getElementById('spotify-player-sdk')) {
+      const script = document.createElement('script');
+      script.id = 'spotify-player-sdk';
+      script.src = 'https://sdk.scdn.co/spotify-player.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+
     return () => {
       playerRef.current?.disconnect();
     };
