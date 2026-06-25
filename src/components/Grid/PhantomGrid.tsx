@@ -110,17 +110,38 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef }: GridScenePr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cols, rows, placeholder]);
 
+  // "Now playing" glow halo — a teal additive plane that sits behind the
+  // active tile and pulses, giving an on-theme stylish indicator.
+  const glow = useMemo(() => {
+    const geom = new THREE.PlaneGeometry(TILE * 1.42, TILE * 1.42);
+    const mat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#00d8d8'),
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.position.z = -0.08;
+    mesh.visible = false;
+    return { mesh, mat };
+  }, []);
+
   useEffect(() => {
     const group = groupRef.current;
     if (!group) return;
     tiles.forEach((t) => group.add(t.mesh));
+    group.add(glow.mesh);
     return () => {
       tiles.forEach((t) => {
         group.remove(t.mesh);
         t.material.dispose();
       });
+      group.remove(glow.mesh);
+      glow.mat.dispose();
     };
-  }, [tiles]);
+  }, [tiles, glow]);
 
   // Map screen pixels to world units at the z=0 plane.
   const pxToWorld = viewport.width / size.width;
@@ -213,7 +234,9 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef }: GridScenePr
   const totalW = cols * STRIDE;
   const totalH = rows * STRIDE;
 
-  useFrame(() => {
+  useFrame((state) => {
+    const time = state.clock.elapsedTime;
+    let playingPos: { x: number; y: number; scale: number } | null = null;
     // Inertia: keep gliding after release, damping velocity toward 0 at 0.1.
     if (!dragging.current) {
       pan.current.x += vel.current.x;
@@ -270,13 +293,30 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef }: GridScenePr
       // Scale: hovered tile grows, current-playing tile stays slightly larger.
       const isHovered = t.mesh.userData.poolIndex === hoveredTile.current;
       const isPlaying = currentTrackId && songs[t.contentIndex]?.id === currentTrackId;
-      t.targetScale = isHovered ? 1.12 : isPlaying ? 1.06 : 1;
+      t.targetScale = isPlaying ? 1.14 : isHovered ? 1.12 : 1;
       t.scale = THREE.MathUtils.lerp(t.scale, t.targetScale, 0.12);
       t.mesh.scale.setScalar(t.scale);
 
-      // Dim non-playing tiles a touch so the active one reads.
-      const op = isPlaying ? 1 : isHovered ? 1 : 0.92;
+      // Dim everything a little more when something is playing so it pops.
+      const anyPlaying = !!currentTrackId;
+      const op = isPlaying ? 1 : isHovered ? 1 : anyPlaying ? 0.78 : 0.92;
       t.material.opacity = THREE.MathUtils.lerp(t.material.opacity, op, 0.1);
+
+      if (isPlaying) playingPos = { x, y, scale: t.scale };
+    }
+
+    // Position + pulse the glow halo behind the playing tile.
+    if (playingPos) {
+      const p = playingPos as { x: number; y: number; scale: number };
+      glow.mesh.visible = true;
+      glow.mesh.position.x = p.x;
+      glow.mesh.position.y = p.y;
+      const pulse = 0.5 + 0.5 * Math.sin(time * 3.2);
+      glow.mesh.scale.setScalar(p.scale * (1 + pulse * 0.08));
+      glow.mat.opacity = THREE.MathUtils.lerp(glow.mat.opacity, 0.35 + pulse * 0.35, 0.2);
+    } else {
+      glow.mat.opacity = THREE.MathUtils.lerp(glow.mat.opacity, 0, 0.15);
+      if (glow.mat.opacity < 0.01) glow.mesh.visible = false;
     }
 
     void hoverContent;
