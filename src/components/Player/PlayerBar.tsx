@@ -38,13 +38,24 @@ export default function PlayerBar() {
       <LyricsPanel isOpen={showLyrics} onClose={toggleLyrics} track={currentTrack} positionMs={position} />
       <NowPlaying />
 
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/5 bg-[#111111]/95 backdrop-blur-md">
+      <div
+        onClick={() => {
+          if (currentTrack) toggleNowPlaying();
+        }}
+        title={currentTrack ? 'Expand player' : undefined}
+        className={`fixed bottom-0 left-0 right-0 z-30 border-t border-white/5 bg-[#111111]/95 backdrop-blur-md ${
+          currentTrack ? 'cursor-pointer' : ''
+        }`}
+      >
         <div className="mx-auto max-w-screen-2xl px-4 py-3">
           <div className="grid grid-cols-3 items-center gap-4">
             {/* Left: track info + expand */}
             <div className="flex items-center gap-3 min-w-0">
               <button
-                onClick={toggleNowPlaying}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleNowPlaying();
+                }}
                 disabled={!currentTrack}
                 title="Expand"
                 className="relative h-10 w-10 shrink-0 overflow-hidden rounded-sm bg-white/5 group disabled:cursor-default"
@@ -61,7 +72,10 @@ export default function PlayerBar() {
               {currentTrack ? (
                 <div className="min-w-0">
                   <button
-                    onClick={toggleNowPlaying}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleNowPlaying();
+                    }}
                     className="block truncate text-xs font-medium text-white/90 hover:text-white text-left"
                   >
                     {currentTrack.name}
@@ -76,7 +90,7 @@ export default function PlayerBar() {
             </div>
 
             {/* Center: transport + progress */}
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col items-center gap-2" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center gap-4">
                 <button
                   onClick={toggleShuffle}
@@ -136,7 +150,7 @@ export default function PlayerBar() {
             </div>
 
             {/* Right: equalizer + toggles + volume */}
-            <div className="flex items-center justify-end gap-3">
+            <div className="flex items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
               {showEqualizer && (
                 <div className="h-7 w-24 rounded-sm border border-white/5 bg-black/40 overflow-hidden hidden md:block">
                   <Equalizer
