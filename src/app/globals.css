@@ -48,6 +48,71 @@ body {
   100% { height: 100%; }
 }
 
+/* ---- Logo intro (pure CSS so it stays smooth while WebGL initializes) ---- */
+.intro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #080808;
+  opacity: 1;
+}
+.intro-overlay.intro-bursting {
+  opacity: 0;
+  transition: opacity 0.55s ease-out;
+}
+.intro-spin {
+  animation: introSpin 2.2s linear infinite;
+  will-change: transform;
+}
+.intro-overlay.intro-bursting .intro-spin {
+  animation-duration: 0.7s;
+}
+.intro-pulse {
+  animation: introIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both,
+    introGrow 3.4s ease-in-out 0.7s infinite alternate;
+  will-change: transform, opacity;
+}
+.intro-overlay.intro-bursting .intro-pulse {
+  animation: introBurst 0.75s cubic-bezier(0.5, 0, 0.75, 0) forwards;
+}
+.intro-label {
+  position: absolute;
+  bottom: 33%;
+  font-size: 10px;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: #00b4b4;
+  font-family: var(--font-geist-mono), monospace;
+  animation: introLabel 0.8s ease-out both;
+}
+.intro-overlay.intro-bursting .intro-label {
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}
+@keyframes introSpin {
+  to { transform: rotate(360deg); }
+}
+@keyframes introIn {
+  from { transform: scale(0.25); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes introGrow {
+  from { transform: scale(1); }
+  to { transform: scale(1.22); }
+}
+@keyframes introBurst {
+  0% { transform: scale(1); opacity: 1; }
+  55% { opacity: 1; }
+  100% { transform: scale(18); opacity: 0; }
+}
+@keyframes introLabel {
+  from { opacity: 0; }
+  to { opacity: 0.5; }
+}
+
 /* Range input — hide native thumb, rely on overlay div for styling */
 input[type='range'] {
   -webkit-appearance: none;

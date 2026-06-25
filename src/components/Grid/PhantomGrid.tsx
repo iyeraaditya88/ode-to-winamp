@@ -63,9 +63,10 @@ interface GridSceneProps {
   currentTrackId?: string;
   distortionRef: React.MutableRefObject<number>;
   burst: boolean;
+  onReady?: () => void;
 }
 
-function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst }: GridSceneProps) {
+function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onReady }: GridSceneProps) {
   const { viewport, size, camera, gl } = useThree();
   const getTexture = useTextureCache();
   const groupRef = useRef<THREE.Group>(null);
@@ -81,6 +82,12 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst }: Grid
   const ambient = useRef({ x: 0, y: 0 });
   const hoveredTile = useRef<number>(-1);
   const entranceStart = useRef<number>(-1); // clock time the burst reveal began
+
+  // Signal readiness after a few warm-up frames (shader compiled, first
+  // textures uploaded) so the intro can burst with no black gap.
+  const readyFrames = useRef(0);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
 
   // Build the recycled tile pool sized to cover the viewport + margin.
   const cols = Math.ceil(viewport.width / STRIDE) + 4;
@@ -243,6 +250,12 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst }: Grid
     const time = state.clock.elapsedTime;
     let playingPos: { x: number; y: number; scale: number } | null = null;
 
+    // Fire onReady once the canvas has rendered a few frames (warm).
+    if (readyFrames.current <= 4) {
+      readyFrames.current += 1;
+      if (readyFrames.current === 4) onReadyRef.current?.();
+    }
+
     // Entrance: once the logo bursts, explode tiles outward from the center.
     if (burst && entranceStart.current < 0) entranceStart.current = time;
     const globalP =
@@ -352,9 +365,10 @@ interface PhantomGridProps {
   onPlay: (track: SpotifyTrack) => void;
   currentTrackId?: string;
   burst?: boolean;
+  onReady?: () => void;
 }
 
-export default function PhantomGrid({ songs, onPlay, currentTrackId, burst = true }: PhantomGridProps) {
+export default function PhantomGrid({ songs, onPlay, currentTrackId, burst = true, onReady }: PhantomGridProps) {
   const distortionRef = useRef(0.12);
   const [hint, setHint] = useState(true);
 
@@ -379,6 +393,7 @@ export default function PhantomGrid({ songs, onPlay, currentTrackId, burst = tru
           currentTrackId={currentTrackId}
           distortionRef={distortionRef}
           burst={burst}
+          onReady={onReady}
         />
         <EffectComposer>
           <LensDistortion distortionRef={distortionRef} />

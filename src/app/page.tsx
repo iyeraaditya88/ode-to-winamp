@@ -64,11 +64,22 @@ function LoginScreen({ error }: { error?: string }) {
 
 export default function Home() {
   const [introComplete, setIntroComplete] = useState(false);
+  const [burst, setBurst] = useState(false);
+  const [gridReady, setGridReady] = useState(false);
+  const [minElapsed, setMinElapsed] = useState(false);
 
-  // Safety net: never leave the user stuck on the logo if the intro
-  // animation fails to fire its completion callback for any reason.
+  // Minimum time the logo swirls before it's allowed to burst.
   useEffect(() => {
-    const t = setTimeout(() => setIntroComplete(true), 5000);
+    const t = setTimeout(() => setMinElapsed(true), 1600);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Hard safety net: force through even if grid never signals ready.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setBurst(true);
+      setIntroComplete(true);
+    }, 8000);
     return () => clearTimeout(t);
   }, []);
 
@@ -85,6 +96,14 @@ export default function Home() {
 
   const isAuthenticated = authData?.authenticated ?? false;
 
+  // Burst once the logo has swirled long enough AND the content behind it is
+  // ready: the WebGL grid has warmed up (authed) or we know it's the login
+  // screen (no grid to wait for). This closes the black gap.
+  useEffect(() => {
+    const contentReady = gridReady || (!authLoading && !isAuthenticated);
+    if (minElapsed && contentReady && !burst) setBurst(true);
+  }, [minElapsed, gridReady, authLoading, isAuthenticated, burst]);
+
   const urlError =
     typeof window !== 'undefined'
       ? new URLSearchParams(window.location.search).get('error') ?? undefined
@@ -92,13 +111,13 @@ export default function Home() {
 
   return (
     <>
-      {/* LandingPage mounts under the overlay so the library *data* fetches
-          during the swirl (lightweight network), but the heavy WebGL grid is
-          gated on `reveal` so it doesn't block the intro animation. */}
-      {isAuthenticated && <LandingPage reveal={introComplete} />}
+      {/* The grid mounts UNDER the overlay during the swirl so WebGL warms up
+          while the (compositor-driven, jank-proof) CSS logo keeps spinning.
+          onGridReady tells us the canvas is warm so we can burst seamlessly. */}
+      {isAuthenticated && <LandingPage burst={burst} onGridReady={() => setGridReady(true)} />}
       {!authLoading && !isAuthenticated && <LoginScreen error={urlError} />}
 
-      {!introComplete && <LogoIntro onComplete={() => setIntroComplete(true)} />}
+      {!introComplete && <LogoIntro burst={burst} onComplete={() => setIntroComplete(true)} />}
     </>
   );
 }
