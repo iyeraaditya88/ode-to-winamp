@@ -33,10 +33,10 @@ export default function LyricsPanel({ isOpen, onClose, track, positionMs }: Lyri
           className="fixed right-0 top-0 bottom-20 z-40 w-80 border-l border-white/5 bg-[#0d0d0d]/95 backdrop-blur-md flex flex-col"
         >
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-            <span className="text-xs font-mono tracking-widest text-white/40 uppercase">Lyrics</span>
+            <span className="text-xs font-mono tracking-widest text-white/62 uppercase">Lyrics</span>
             <button
               onClick={onClose}
-              className="text-white/30 hover:text-white/70 transition-colors"
+              className="text-white/55 hover:text-white/85 transition-colors"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
                 <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -46,8 +46,8 @@ export default function LyricsPanel({ isOpen, onClose, track, positionMs }: Lyri
 
           {track && (
             <div className="px-5 py-3 border-b border-white/5">
-              <p className="text-xs font-medium text-white/70 truncate">{track.name}</p>
-              <p className="text-xs text-white/30 truncate mt-0.5">
+              <p className="text-xs font-medium text-white/85 truncate">{track.name}</p>
+              <p className="text-xs text-white/55 truncate mt-0.5">
                 {track.artists.map((a) => a.name).join(', ')}
               </p>
             </div>
@@ -55,7 +55,7 @@ export default function LyricsPanel({ isOpen, onClose, track, positionMs }: Lyri
 
           <div className="flex-1 overflow-y-auto px-5 py-4 scrollbar-thin">
             {!track && (
-              <p className="text-xs text-white/20 font-mono text-center py-8">
+              <p className="text-xs text-white/48 font-mono text-center py-8">
                 Play a song to see lyrics
               </p>
             )}
@@ -78,7 +78,7 @@ export default function LyricsPanel({ isOpen, onClose, track, positionMs }: Lyri
             )}
 
             {track && !isLoading && !hasSynced && !plainLyrics && (
-              <p className="text-xs text-white/20 font-mono text-center py-8">
+              <p className="text-xs text-white/48 font-mono text-center py-8">
                 No lyrics found
               </p>
             )}
@@ -96,8 +96,8 @@ export default function LyricsPanel({ isOpen, onClose, track, positionMs }: Lyri
                         isActive
                           ? 'text-white font-medium text-base'
                           : isPast
-                          ? 'text-white/25'
-                          : 'text-white/45'
+                          ? 'text-white/50'
+                          : 'text-white/62'
                       }`}
                     >
                       {line.text || <span className="text-white/10">·</span>}
@@ -108,7 +108,7 @@ export default function LyricsPanel({ isOpen, onClose, track, positionMs }: Lyri
             )}
 
             {!hasSynced && plainLyrics && (
-              <pre className="text-xs text-white/50 font-mono leading-relaxed whitespace-pre-wrap">
+              <pre className="text-xs text-white/68 font-mono leading-relaxed whitespace-pre-wrap">
                 {plainLyrics}
               </pre>
             )}

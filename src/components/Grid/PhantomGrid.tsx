@@ -401,7 +401,7 @@ export default function PhantomGrid({ songs, onPlay, currentTrackId, burst = tru
       </Canvas>
 
       {hint && (
-        <div className="pointer-events-none absolute bottom-28 left-1/2 -translate-x-1/2 text-[10px] tracking-[0.3em] text-white/30 font-mono uppercase animate-pulse">
+        <div className="pointer-events-none absolute bottom-28 left-1/2 -translate-x-1/2 text-[10px] tracking-[0.3em] text-white/55 font-mono uppercase animate-pulse">
           Drag to explore · Click to play
         </div>
       )}

@@ -21,7 +21,7 @@ export default function ProgressBar({ position, duration, onSeek }: ProgressBarP
 
   return (
     <div className="flex items-center gap-3 w-full">
-      <span className="text-[10px] text-white/30 font-mono w-8 text-right shrink-0">
+      <span className="text-[10px] text-white/55 font-mono w-8 text-right shrink-0">
         {formatTime(position)}
       </span>
       <div className="relative flex-1 h-1 group">
@@ -49,7 +49,7 @@ export default function ProgressBar({ position, duration, onSeek }: ProgressBarP
           className="absolute inset-0 w-full opacity-0 cursor-pointer h-full"
         />
       </div>
-      <span className="text-[10px] text-white/30 font-mono w-8 shrink-0">
+      <span className="text-[10px] text-white/55 font-mono w-8 shrink-0">
         {formatTime(duration)}
       </span>
     </div>

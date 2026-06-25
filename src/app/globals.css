@@ -81,10 +81,11 @@ body {
 .intro-label {
   position: absolute;
   bottom: 33%;
-  font-size: 10px;
-  letter-spacing: 0.4em;
+  font-size: 11px;
+  letter-spacing: 0.45em;
   text-transform: uppercase;
-  color: #00b4b4;
+  color: #5af0f0;
+  text-shadow: 0 0 16px rgba(0, 200, 200, 0.6), 0 0 4px rgba(120, 255, 255, 0.5);
   font-family: var(--font-geist-mono), monospace;
   animation: introLabel 0.8s ease-out both;
 }
@@ -110,7 +111,7 @@ body {
 }
 @keyframes introLabel {
   from { opacity: 0; }
-  to { opacity: 0.5; }
+  to { opacity: 0.95; }
 }
 
 /* Range input — hide native thumb, rely on overlay div for styling */

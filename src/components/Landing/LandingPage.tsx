@@ -83,27 +83,27 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
               <circle cx="40" cy="40" r="10" fill="#00b4b4" opacity="0.9" />
               <path d="M14 52 L22 28 L30 44 L40 24 L50 44 L58 28 L66 52" stroke="#00b4b4" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
             </svg>
-            <span className="text-sm font-mono tracking-[0.2em] text-white/60 uppercase">
+            <span className="text-sm font-mono tracking-[0.2em] text-white/80 uppercase">
               Ode to Winamp
             </span>
           </div>
 
           <div className="flex items-center gap-4">
             {total > 0 && (
-              <span className="text-xs text-white/25 font-mono hidden sm:inline">{total} liked songs</span>
+              <span className="text-xs text-white/50 font-mono hidden sm:inline">{total} liked songs</span>
             )}
             <button
               onClick={() => setSearchOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-sm border border-white/10 bg-black/30 backdrop-blur-sm text-white/40 hover:text-white/70 hover:border-white/20 transition-colors text-xs font-mono"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-sm border border-white/10 bg-black/30 backdrop-blur-sm text-white/62 hover:text-white/85 hover:border-white/20 transition-colors text-xs font-mono"
             >
               <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
               </svg>
-              Search <span className="text-white/20">/</span>
+              Search <span className="text-white/48">/</span>
             </button>
             <a
               href="/api/auth/logout"
-              className="text-xs text-white/20 hover:text-white/50 transition-colors font-mono"
+              className="text-xs text-white/48 hover:text-white/68 transition-colors font-mono"
             >
               Sign out
             </a>
@@ -121,13 +121,13 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
         <div className="absolute inset-0 z-20 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <div className="h-8 w-8 rounded-full border-2 border-white/10 border-t-[#00b4b4] animate-spin" />
-            <p className="text-xs text-white/30 font-mono tracking-widest uppercase">Loading your library</p>
+            <p className="text-xs text-white/55 font-mono tracking-widest uppercase">Loading your library</p>
           </div>
         </div>
       )}
 
       {error && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center text-white/30 text-sm">
+        <div className="absolute inset-0 z-20 flex items-center justify-center text-white/55 text-sm">
           Failed to load liked songs.{' '}
           <a href="/api/auth/login" className="ml-2 text-[#00b4b4] hover:underline">
             Reconnect Spotify

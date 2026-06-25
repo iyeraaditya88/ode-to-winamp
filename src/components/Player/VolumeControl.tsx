@@ -45,7 +45,7 @@ export default function VolumeControl({ volume, onVolumeChange }: VolumeControlP
     <div className="flex items-center gap-2">
       <button
         onClick={toggleMute}
-        className="text-white/40 hover:text-white/80 transition-colors shrink-0"
+        className="text-white/62 hover:text-white/80 transition-colors shrink-0"
       >
         <VolumeIcon />
       </button>

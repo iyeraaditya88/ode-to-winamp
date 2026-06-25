@@ -57,7 +57,7 @@ export default function SearchBar({
           onClick={(e) => e.target === e.currentTarget && onClose()}
         >
           <div className="flex items-center border-b border-white/10 px-8 py-6">
-            <svg className="mr-4 text-white/30 shrink-0" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <svg className="mr-4 text-white/55 shrink-0" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
             </svg>
             <input
@@ -70,7 +70,7 @@ export default function SearchBar({
             />
             <button
               onClick={onClose}
-              className="ml-4 text-white/30 hover:text-white transition-colors text-sm font-mono tracking-widest"
+              className="ml-4 text-white/55 hover:text-white transition-colors text-sm font-mono tracking-widest"
             >
               ESC
             </button>
@@ -78,13 +78,13 @@ export default function SearchBar({
 
           <div className="flex-1 overflow-y-auto px-8 py-4">
             {isLoading && (
-              <div className="flex items-center justify-center py-16 text-white/20 text-sm">
+              <div className="flex items-center justify-center py-16 text-white/48 text-sm">
                 Searching…
               </div>
             )}
 
             {!isLoading && query.trim() && results.length === 0 && (
-              <div className="flex items-center justify-center py-16 text-white/20 text-sm">
+              <div className="flex items-center justify-center py-16 text-white/48 text-sm">
                 No results for &ldquo;{query}&rdquo;
               </div>
             )}
@@ -117,11 +117,11 @@ export default function SearchBar({
                       <p className={`truncate text-sm font-medium ${isActive ? 'text-[#00b4b4]' : 'text-white/90'}`}>
                         {track.name}
                       </p>
-                      <p className="truncate text-xs text-white/40">
+                      <p className="truncate text-xs text-white/62">
                         {track.artists.map((a) => a.name).join(', ')} · {track.album.name}
                       </p>
                     </div>
-                    <span className="shrink-0 text-xs text-white/25 font-mono">
+                    <span className="shrink-0 text-xs text-white/50 font-mono">
                       {formatDuration(track.duration_ms)}
                     </span>
                   </motion.button>

@@ -93,11 +93,11 @@ export default function SongCard({ track, isPlaying, onPlay, index }: SongCardPr
 
       <div className="p-3">
         <p className="truncate text-sm font-medium text-white/90 leading-tight">{track.name}</p>
-        <p className="truncate text-xs text-white/40 mt-0.5">{artistNames}</p>
+        <p className="truncate text-xs text-white/62 mt-0.5">{artistNames}</p>
         <div className="flex items-center justify-between mt-2">
-          <p className="text-[10px] text-white/25 font-mono">{formatDuration(track.duration_ms)}</p>
+          <p className="text-[10px] text-white/50 font-mono">{formatDuration(track.duration_ms)}</p>
           {track.explicit && (
-            <span className="text-[9px] text-white/25 border border-white/20 px-1 rounded uppercase tracking-wide">E</span>
+            <span className="text-[9px] text-white/50 border border-white/20 px-1 rounded uppercase tracking-wide">E</span>
           )}
         </div>
       </div>
