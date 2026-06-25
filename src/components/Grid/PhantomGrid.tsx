@@ -8,15 +8,9 @@ import gsap from 'gsap';
 import { LensDistortion } from './LensDistortion';
 import type { SpotifyTrack } from '@/types/spotify';
 
-const STRIDE = 2.45; // world-space distance between tile centers (tighter = more songs in view)
-const TILE = 2.0; // tile size (square)
+const STRIDE = 3.2; // world-space distance between tile centers
+const TILE = 2.7; // tile size (square)
 const CONTENT_SKEW = 7; // de-correlates rows so neighbours differ
-
-// Camera + curvature tuning. Drag values deepen the effect while interacting.
-const CAMERA_Z = 13; // pulled back for a wider field of view
-const CAMERA_Z_DRAG = 14.5;
-const DISTORTION_REST = 0.2; // stronger barrel curve at rest
-const DISTORTION_DRAG = 0.38;
 
 function posMod(n: number, m: number) {
   return ((n % m) + m) % m;
@@ -163,8 +157,8 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef }: GridScenePr
       vel.current = { x: 0, y: 0 };
       el.setPointerCapture(e.pointerId);
       // Push the camera back + deepen curvature while interacting.
-      gsap.to(camera.position, { z: CAMERA_Z_DRAG, duration: 1, ease: 'power3.out' });
-      gsap.to(distortionRef, { current: DISTORTION_DRAG, duration: 1, ease: 'power2.out' });
+      gsap.to(camera.position, { z: 11.5, duration: 1, ease: 'power3.out' });
+      gsap.to(distortionRef, { current: 0.26, duration: 1, ease: 'power2.out' });
     };
 
     const onMove = (e: PointerEvent) => {
@@ -193,8 +187,8 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef }: GridScenePr
       try {
         el.releasePointerCapture(e.pointerId);
       } catch {}
-      gsap.to(camera.position, { z: CAMERA_Z, duration: 1, ease: 'power3.out' });
-      gsap.to(distortionRef, { current: DISTORTION_REST, duration: 1, ease: 'power2.out' });
+      gsap.to(camera.position, { z: 10, duration: 1, ease: 'power3.out' });
+      gsap.to(distortionRef, { current: 0.12, duration: 1, ease: 'power2.out' });
 
       // A near-stationary press is a click → play that tile's track.
       if (moved.current < 6) {
@@ -298,7 +292,7 @@ interface PhantomGridProps {
 }
 
 export default function PhantomGrid({ songs, onPlay, currentTrackId }: PhantomGridProps) {
-  const distortionRef = useRef(DISTORTION_REST);
+  const distortionRef = useRef(0.12);
   const [hint, setHint] = useState(true);
 
   useEffect(() => {
@@ -311,7 +305,7 @@ export default function PhantomGrid({ songs, onPlay, currentTrackId }: PhantomGr
   return (
     <div className="fixed inset-0 z-0 cursor-grab active:cursor-grabbing">
       <Canvas
-        camera={{ position: [0, 0, CAMERA_Z], fov: 58, near: 0.1, far: 100 }}
+        camera={{ position: [0, 0, 10], fov: 45, near: 0.1, far: 100 }}
         gl={{ antialias: true, alpha: true }}
         dpr={[1, 2]}
       >
