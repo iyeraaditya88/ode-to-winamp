@@ -20,7 +20,7 @@ export function useSearch() {
   const { data, isLoading } = useQuery<{ tracks: { items: SpotifyTrack[] } }>({
     queryKey: ['search', debouncedQuery],
     queryFn: () =>
-      fetch(`/api/spotify/search?q=${encodeURIComponent(debouncedQuery)}`).then((r) => r.json()),
+      fetch(`/api/spotify/search?q=${encodeURIComponent(debouncedQuery)}&limit=50`).then((r) => r.json()),
     enabled: debouncedQuery.trim().length > 1,
     staleTime: 30_000,
   });

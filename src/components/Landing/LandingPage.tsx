@@ -60,6 +60,12 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
     playTrack(track, gridSongs);
   };
 
+  // Playing from search queues the search results, so Next/Prev keep exploring
+  // the results rather than jumping back to the liked-songs grid.
+  const handlePlaySearch = (track: SpotifyTrack) => {
+    playTrack(track, searchResults.length > 0 ? searchResults : [track]);
+  };
+
   const total = data?.pages[0]?.total ?? 0;
 
   return (
@@ -145,7 +151,7 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
         onQueryChange={setQuery}
         results={searchResults}
         isLoading={searchLoading}
-        onPlay={handlePlay}
+        onPlay={handlePlaySearch}
         currentTrackId={currentTrack?.id}
       />
     </div>
