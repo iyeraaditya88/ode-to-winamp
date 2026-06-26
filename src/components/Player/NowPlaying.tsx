@@ -156,9 +156,22 @@ export default function NowPlaying() {
             </div>
           )}
 
-          {/* Top bar */}
-          <div className="flex items-center justify-between px-4 sm:px-6 py-4">
-            <span className="text-xs font-mono tracking-[0.3em] text-white/62 uppercase">Now Playing</span>
+          {/* Drag handle: grabber + top bar — swipe/pull down to collapse */}
+          <motion.div
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.5 }}
+            dragSnapToOrigin
+            onDragEnd={(_e, info) => {
+              if (info.offset.y > 90 || info.velocity.y > 400) toggleNowPlaying();
+            }}
+            className="shrink-0 cursor-grab active:cursor-grabbing"
+          >
+            <div className="flex justify-center pt-2 pb-1">
+              <div className="h-1 w-10 rounded-full bg-white/25" />
+            </div>
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3">
+              <span className="text-xs font-mono tracking-[0.3em] text-white/62 uppercase">Now Playing</span>
             <div className="flex items-center gap-3 sm:gap-5">
               <button
                 onClick={() => setClassic((c) => !c)}
@@ -196,7 +209,8 @@ export default function NowPlaying() {
                 CLOSE
               </button>
             </div>
-          </div>
+            </div>
+          </motion.div>
 
           {classic ? (
             <div className="flex-1 min-h-0 flex flex-col lg:grid lg:grid-cols-2 gap-6 lg:gap-8 px-4 sm:px-6 lg:px-12 pb-6 overflow-y-auto lg:overflow-hidden">

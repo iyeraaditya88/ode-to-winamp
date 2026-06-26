@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { motion } from 'framer-motion';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useEqualizerSettings, EQ_STYLES, EQ_THEMES } from '@/hooks/useEqualizerSettings';
 import { useShareTrack } from '@/hooks/useShareTrack';
@@ -48,16 +49,32 @@ export default function PlayerBar() {
       <LyricsPanel isOpen={showLyrics} onClose={toggleLyrics} track={currentTrack} positionMs={position} />
       <NowPlaying />
 
-      <div
+      <motion.div
         onClick={() => {
           if (currentTrack) toggleNowPlaying();
         }}
-        title={currentTrack ? 'Expand player' : undefined}
+        drag={currentTrack ? 'y' : false}
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0.4, bottom: 0 }}
+        dragSnapToOrigin
+        onDragEnd={(_e, info) => {
+          if (currentTrack && (info.offset.y < -24 || info.velocity.y < -250)) {
+            toggleNowPlaying();
+          }
+        }}
+        title={currentTrack ? 'Tap or swipe up to expand' : undefined}
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         className={`fixed bottom-0 left-0 right-0 z-30 border-t border-white/5 bg-[#111111]/95 backdrop-blur-md ${
           currentTrack ? 'cursor-pointer' : ''
         }`}
       >
+        {/* Grabber handle — the 'pull up' affordance */}
+        {currentTrack && (
+          <div className="flex justify-center pt-1.5 pb-0.5">
+            <div className="h-1 w-9 rounded-full bg-white/25" />
+          </div>
+        )}
+
         {/* Mobile-only thin progress line across the top of the bar */}
         <div className="sm:hidden h-[2px] w-full bg-white/10">
           <div
@@ -243,22 +260,11 @@ export default function PlayerBar() {
                 )}
               </button>
 
-              <button
-                onClick={toggleNowPlaying}
-                disabled={!currentTrack}
-                title="Expand player"
-                className="text-white/55 hover:text-white/80 transition-colors disabled:opacity-20 hidden sm:block"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M7 14l5-5 5 5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-
               <VolumeControl volume={volume} onVolumeChange={setVolume} />
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
     </>
   );
 }
