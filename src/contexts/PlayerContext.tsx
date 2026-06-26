@@ -58,6 +58,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const deviceIdRef = useRef<string | null>(null);
   const advancingRef = useRef(false);
   const lastPosRef = useRef(0);
+  const readySeqRef = useRef(0); // bumps on every SDK 'ready' — lets reconnect waits know a fresh device registered
   const activatedRef = useRef(false);
 
   // Mobile browsers block audio until the SDK's element is activated inside a
@@ -78,17 +79,52 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { shuffleRef.current = shuffle; }, [shuffle]);
   useEffect(() => { deviceIdRef.current = deviceId; }, [deviceId]);
 
-  const playUri = useCallback(async (uri: string) => {
-    const id = deviceIdRef.current;
-    if (!id) return;
-    advancingRef.current = false;
-    lastPosRef.current = 0;
-    await fetch(`/api/spotify/play?device_id=${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uris: [uri] }),
+  // Spotify drops idle web-playback devices after a while, leaving the cached
+  // device_id stale. Re-register the device and wait for a fresh 'ready'.
+  const reconnectDevice = useCallback(() => {
+    return new Promise<void>((resolve) => {
+      const p = playerRef.current;
+      if (!p) return resolve();
+      const seq = readySeqRef.current;
+      p.connect();
+      const start = Date.now();
+      const tick = () => {
+        if (readySeqRef.current > seq || Date.now() - start > 4000) resolve();
+        else setTimeout(tick, 150);
+      };
+      setTimeout(tick, 250);
     });
   }, []);
+
+  const playUri = useCallback(
+    async (uri: string) => {
+      advancingRef.current = false;
+      lastPosRef.current = 0;
+
+      const send = (devId: string) =>
+        fetch(`/api/spotify/play?device_id=${devId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uris: [uri] }),
+        });
+
+      let id = deviceIdRef.current;
+      if (!id) {
+        await reconnectDevice();
+        id = deviceIdRef.current;
+      }
+      if (!id) return;
+
+      let res = await send(id);
+      if (!res.ok) {
+        // Device went inactive after idle — re-register and retry once.
+        await reconnectDevice();
+        const id2 = deviceIdRef.current;
+        if (id2) res = await send(id2);
+      }
+    },
+    [reconnectDevice]
+  );
 
   const playIndex = useCallback(
     (i: number) => {
@@ -147,6 +183,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     player.addListener('ready', ({ device_id }: { device_id: string }) => {
       setDeviceId(device_id);
       deviceIdRef.current = device_id;
+      readySeqRef.current += 1;
+    });
+
+    player.addListener('not_ready', () => {
+      // Spotify dropped the device (idle timeout / network). Re-register it so
+      // the next play doesn't hit a dead device.
+      player.connect();
     });
 
     player.addListener('player_state_changed', (state: Spotify.PlaybackState | null) => {
