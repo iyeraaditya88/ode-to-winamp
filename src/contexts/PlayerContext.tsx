@@ -59,6 +59,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const advancingRef = useRef(false);
   const lastPosRef = useRef(0);
   const readySeqRef = useRef(0); // bumps on every SDK 'ready' — lets reconnect waits know a fresh device registered
+  const reconnectingRef = useRef(false); // guards the not_ready listener during a manual reconnect
   const activatedRef = useRef(false);
 
   // Mobile browsers block audio until the SDK's element is activated inside a
@@ -80,19 +81,31 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { deviceIdRef.current = deviceId; }, [deviceId]);
 
   // Spotify drops idle web-playback devices after a while, leaving the cached
-  // device_id stale. Re-register the device and wait for a fresh 'ready'.
+  // device_id stale. Force a FULL re-register — connect() alone often doesn't
+  // fire a fresh 'ready' because the SDK still thinks it's connected even after
+  // Spotify removed the device server-side. disconnect() then connect() does.
   const reconnectDevice = useCallback(() => {
     return new Promise<void>((resolve) => {
       const p = playerRef.current;
       if (!p) return resolve();
       const seq = readySeqRef.current;
+      reconnectingRef.current = true;
+      try {
+        p.disconnect();
+      } catch {
+        /* ignore */
+      }
       p.connect();
       const start = Date.now();
       const tick = () => {
-        if (readySeqRef.current > seq || Date.now() - start > 4000) resolve();
-        else setTimeout(tick, 150);
+        if (readySeqRef.current > seq || Date.now() - start > 6000) {
+          reconnectingRef.current = false;
+          resolve();
+        } else {
+          setTimeout(tick, 150);
+        }
       };
-      setTimeout(tick, 250);
+      setTimeout(tick, 300);
     });
   }, []);
 
@@ -116,11 +129,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (!id) return;
 
       let res = await send(id);
-      if (!res.ok) {
-        // Device went inactive after idle — re-register and retry once.
-        await reconnectDevice();
-        const id2 = deviceIdRef.current;
-        if (id2) res = await send(id2);
+      if (res.ok) return;
+
+      // Stale device after idle — re-register, then retry a few times to beat
+      // the race where Spotify hasn't accepted commands on the fresh device yet.
+      await reconnectDevice();
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const devId = deviceIdRef.current;
+        if (!devId) break;
+        res = await send(devId);
+        if (res.ok) return;
+        await new Promise((r) => setTimeout(r, 700));
       }
     },
     [reconnectDevice]
@@ -188,7 +207,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     player.addListener('not_ready', () => {
       // Spotify dropped the device (idle timeout / network). Re-register it so
-      // the next play doesn't hit a dead device.
+      // the next play doesn't hit a dead device — unless a manual reconnect is
+      // already in flight (avoid fighting it).
+      if (reconnectingRef.current) return;
       player.connect();
     });
 
