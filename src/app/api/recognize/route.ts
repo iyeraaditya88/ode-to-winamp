@@ -12,8 +12,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Recognition not configured' }, { status: 503 });
   }
 
-  const incoming = await request.formData();
-  const file = incoming.get('file');
+  let file: FormDataEntryValue | null = null;
+  try {
+    const incoming = await request.formData();
+    file = incoming.get('file');
+  } catch {
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+  }
   if (!(file instanceof Blob)) {
     return NextResponse.json({ error: 'No audio provided' }, { status: 400 });
   }
