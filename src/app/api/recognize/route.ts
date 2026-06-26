@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getFreshAccessToken } from '@/lib/auth';
 import type { SpotifyTrack } from '@/types/spotify';
 
 /**
@@ -41,7 +42,14 @@ export async function POST(request: NextRequest) {
   }
 
   const r = data.result;
-  const track = r.spotify ? normalizeSpotify(r.spotify) : undefined;
+  let track = r.spotify ? normalizeSpotify(r.spotify) : undefined;
+
+  // Fallback: if AudD didn't return a Spotify match, search Spotify ourselves
+  // so the result always resolves to a real track (Play + Add to Liked).
+  if (!track) {
+    const q = [r.artist, r.title].filter(Boolean).join(' ').trim();
+    if (q) track = await searchSpotifyTrack(q);
+  }
 
   return NextResponse.json({
     matched: true,
@@ -49,6 +57,19 @@ export async function POST(request: NextRequest) {
     artist: r.artist ?? track?.artists[0]?.name ?? '',
     track,
   });
+}
+
+async function searchSpotifyTrack(query: string): Promise<SpotifyTrack | undefined> {
+  const token = await getFreshAccessToken();
+  if (!token) return undefined;
+  const res = await fetch(
+    `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=1`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) return undefined;
+  const data = await res.json();
+  const item = data.tracks?.items?.[0];
+  return item ? normalizeSpotify(item) : undefined;
 }
 
 interface AuddResponse {

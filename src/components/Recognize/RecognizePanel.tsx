@@ -86,18 +86,43 @@ export default function RecognizePanel({ isOpen, onClose, onSearch }: RecognizeP
 
           {/* ---- Listening ---- */}
           {state === 'listening' && (
-            <div className="flex flex-col items-center gap-6">
-              <div className="relative h-28 w-28 flex items-center justify-center">
-                <span className="absolute inset-0 rounded-full bg-[#00b4b4]/20 animate-ping" />
-                <span className="absolute inset-3 rounded-full bg-[#00b4b4]/15 animate-pulse" />
-                <div className="relative h-20 w-20 rounded-full bg-[#00b4b4]/20 border border-[#00b4b4]/50 flex items-center justify-center">
-                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#00e0e0" strokeWidth="1.6">
+            <div className="flex flex-col items-center gap-7">
+              <div className="relative h-40 w-40 flex items-center justify-center">
+                {/* Expanding sonar rings */}
+                {[0, 0.6, 1.2].map((delay) => (
+                  <motion.span
+                    key={delay}
+                    className="absolute rounded-full border border-[#00b4b4]/50"
+                    initial={{ width: 80, height: 80, opacity: 0.6 }}
+                    animate={{ width: 160, height: 160, opacity: 0 }}
+                    transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut', delay }}
+                  />
+                ))}
+                {/* Pulsing mic core */}
+                <motion.div
+                  className="relative h-20 w-20 rounded-full bg-[#00b4b4]/25 border border-[#00b4b4]/60 flex items-center justify-center"
+                  animate={{ scale: [1, 1.12, 1] }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
+                  style={{ boxShadow: '0 0 30px rgba(0,180,180,0.4)' }}
+                >
+                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#00e8e8" strokeWidth="1.6">
                     <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
                     <path d="M5 11a7 7 0 0 0 14 0M12 18v3" strokeLinecap="round" />
                   </svg>
-                </div>
+                </motion.div>
               </div>
-              <p className="text-sm text-[#00b4b4] font-mono tracking-widest animate-pulse">LISTENING…</p>
+              {/* Animated equalizer bars */}
+              <div className="flex items-end gap-1 h-5">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <motion.span
+                    key={i}
+                    className="w-1 rounded-full bg-[#00b4b4]"
+                    animate={{ height: [6, 20, 6] }}
+                    transition={{ duration: 0.7, repeat: Infinity, ease: 'easeInOut', delay: i * 0.12 }}
+                  />
+                ))}
+              </div>
+              <p className="text-sm text-[#00b4b4] font-mono tracking-[0.3em]">LISTENING…</p>
             </div>
           )}
 

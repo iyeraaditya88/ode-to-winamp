@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import type { SpotifyTrack } from '@/types/spotify';
@@ -32,6 +32,21 @@ export default function SearchBar({
   currentTrackId,
 }: SearchBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  const [needsReconnect, setNeedsReconnect] = useState(false);
+
+  const like = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/spotify/like?id=${id}`, { method: 'PUT' });
+      if (res.status === 403) {
+        setNeedsReconnect(true);
+        return;
+      }
+      if (res.ok) setLikedIds((s) => new Set(s).add(id));
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     if (isOpen) inputRef.current?.focus();
@@ -124,10 +139,37 @@ export default function SearchBar({
                     <span className="shrink-0 text-xs text-white/50 font-mono">
                       {formatDuration(track.duration_ms)}
                     </span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        like(track.id);
+                      }}
+                      title="Add to Liked Songs"
+                      className={`shrink-0 p-1.5 -mr-1 rounded-full transition-colors ${
+                        likedIds.has(track.id)
+                          ? 'text-[#00b4b4]'
+                          : 'text-white/35 hover:text-white/80'
+                      }`}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill={likedIds.has(track.id) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                        <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
                   </motion.button>
                 );
               })}
             </div>
+
+            {needsReconnect && (
+              <a
+                href="/api/auth/login"
+                className="mt-3 block text-center text-xs text-[#00b4b4] hover:underline font-mono"
+              >
+                Reconnect Spotify to enable liking →
+              </a>
+            )}
           </div>
         </motion.div>
       )}
