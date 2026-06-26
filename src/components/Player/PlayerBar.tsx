@@ -199,7 +199,7 @@ export default function PlayerBar() {
               <button
                 onClick={cycleVisualizer}
                 title="Click to change the visualizer"
-                className="h-9 w-44 rounded-sm border border-white/10 bg-black/40 overflow-hidden hidden md:block hover:border-[#00b4b4]/40 active:scale-[0.97] transition-all"
+                className="h-9 w-44 overflow-hidden hidden md:block opacity-90 hover:opacity-100 active:scale-[0.97] transition-all"
               >
                 <Equalizer
                   isPlaying={isPlaying}
