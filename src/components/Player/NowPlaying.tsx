@@ -178,7 +178,8 @@ export default function NowPlaying({ progress, onCollapse }: NowPlayingProps) {
               if (close) onCollapse();
               else animate(progress, 1, SHEET_SPRING);
             }}
-            className="shrink-0 cursor-grab active:cursor-grabbing"
+            style={{ touchAction: 'none' }}
+            className="shrink-0 select-none cursor-grab active:cursor-grabbing"
           >
             <div className="flex justify-center pt-2 pb-1">
               <div className="h-1 w-10 rounded-full bg-white/25" />
