@@ -82,7 +82,7 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
         />
       )}
 
-      <header className="absolute top-0 left-0 right-0 z-30">
+      <header className="absolute top-0 left-0 right-0 z-30" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 py-4 flex items-center justify-between gap-2">
           <div className="flex items-center gap-3 min-w-0">
             <Logo size={26} glow={false} />

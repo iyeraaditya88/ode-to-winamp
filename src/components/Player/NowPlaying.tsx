@@ -120,6 +120,10 @@ export default function NowPlaying() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 30 }}
           transition={{ type: 'spring', damping: 30, stiffness: 280 }}
+          style={{
+            paddingTop: 'env(safe-area-inset-top)',
+            paddingBottom: 'env(safe-area-inset-bottom)',
+          }}
           className="fixed inset-0 z-50 flex flex-col bg-[#070707]"
         >
           {/* Blurred album-art backdrop */}

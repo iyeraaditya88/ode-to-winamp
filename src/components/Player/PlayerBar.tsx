@@ -51,6 +51,7 @@ export default function PlayerBar() {
           if (currentTrack) toggleNowPlaying();
         }}
         title={currentTrack ? 'Expand player' : undefined}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         className={`fixed bottom-0 left-0 right-0 z-30 border-t border-white/5 bg-[#111111]/95 backdrop-blur-md ${
           currentTrack ? 'cursor-pointer' : ''
         }`}
