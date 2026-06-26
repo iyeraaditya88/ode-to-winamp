@@ -146,7 +146,7 @@ export default function NowPlaying() {
           {classic ? (
             <div className="flex-1 min-h-0 flex flex-col lg:grid lg:grid-cols-2 gap-6 lg:gap-8 px-4 sm:px-6 lg:px-12 pb-6 overflow-y-auto lg:overflow-hidden">
               {/* Left: classic Winamp player */}
-              <div className="flex items-start justify-center lg:min-h-0 lg:overflow-y-auto py-2 shrink-0 w-full">
+              <div className="flex justify-center lg:min-h-0 lg:h-full py-2 w-full">
                 <ClassicWinamp />
               </div>
 
@@ -154,7 +154,7 @@ export default function NowPlaying() {
               <div className="flex flex-col lg:min-h-0 gap-5 shrink-0 w-full">
                 <div className="relative w-full max-w-[220px] sm:max-w-xs aspect-square rounded-lg overflow-hidden shadow-2xl mx-auto lg:mx-0">
                   {art ? (
-                    <Image src={art} alt={currentTrack?.album.name ?? ''} fill className="object-cover" />
+                    <Image src={art} alt={currentTrack?.album.name ?? ''} fill className="object-contain" />
                   ) : (
                     <div className="h-full w-full bg-white/5" />
                   )}
@@ -171,7 +171,7 @@ export default function NowPlaying() {
             <div className="flex flex-col items-center gap-5 lg:gap-6 lg:justify-center lg:min-h-0 shrink-0 w-full">
               <div className="relative w-full max-w-[240px] sm:max-w-xs lg:max-w-sm aspect-square rounded-lg overflow-hidden shadow-2xl">
                 {art ? (
-                  <Image src={art} alt={currentTrack?.album.name ?? ''} fill className="object-cover" />
+                  <Image src={art} alt={currentTrack?.album.name ?? ''} fill className="object-contain" />
                 ) : (
                   <div className="h-full w-full bg-white/5" />
                 )}

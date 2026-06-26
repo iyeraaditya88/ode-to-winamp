@@ -77,7 +77,7 @@ function EqWindow() {
     .join(' ');
 
   return (
-    <div className={`${OUT} bg-[#2b2b2b] p-[3px]`}>
+    <div className={`${OUT} bg-[#2b2b2b] p-[3px] shrink-0`}>
       <TitleBar label="WINAMP EQUALIZER" />
       <div className={`${IN} bg-[#101010] mt-[3px] p-2 flex flex-col gap-1.5`}>
         <div className="flex items-center gap-1.5">
@@ -178,9 +178,9 @@ export default function ClassicWinamp() {
     : 'Ode to Winamp - load a track';
 
   return (
-    <div className="w-full max-w-[460px] mx-auto select-none font-mono text-[#c8c8c0] flex flex-col gap-[6px]">
+    <div className="w-full max-w-[460px] mx-auto select-none font-mono text-[#c8c8c0] flex flex-col gap-[6px] lg:h-full">
       {/* ===== MAIN WINDOW ===== */}
-      <div className={`${OUT} bg-[#2b2b2b] p-[3px]`}>
+      <div className={`${OUT} bg-[#2b2b2b] p-[3px] shrink-0`}>
         <TitleBar label="WINAMP" />
         <div className={`${IN} bg-[#0e0e0e] mt-[3px] p-2 flex flex-col gap-2`}>
           {/* time + visualizer */}
@@ -291,10 +291,10 @@ export default function ClassicWinamp() {
       <EqWindow />
 
       {/* ===== PLAYLIST WINDOW ===== */}
-      <div className={`${OUT} bg-[#2b2b2b] p-[3px]`}>
+      <div className={`${OUT} bg-[#2b2b2b] p-[3px] lg:flex-1 lg:min-h-0 flex flex-col`}>
         <TitleBar label="WINAMP PLAYLIST" />
-        <div className={`${IN} bg-black mt-[3px]`}>
-          <div className="max-h-44 overflow-y-auto py-1">
+        <div className={`${IN} bg-black mt-[3px] lg:flex-1 lg:min-h-0 flex flex-col`}>
+          <div className="max-h-44 lg:max-h-none lg:flex-1 lg:min-h-0 overflow-y-auto py-1">
             {queue.length === 0 && (
               <div className="px-2 py-3 text-[9px] text-[#4a7a4a]">Playlist is empty</div>
             )}
@@ -317,7 +317,7 @@ export default function ClassicWinamp() {
               );
             })}
           </div>
-          <div className="flex items-center justify-between px-2 py-1 border-t border-[#1a1a1a] text-[9px] text-[#00c000] tabular-nums">
+          <div className="shrink-0 flex items-center justify-between px-2 py-1 border-t border-[#1a1a1a] text-[9px] text-[#00c000] tabular-nums">
             <span>{queue.length} items</span>
             <span style={{ textShadow: '0 0 4px rgba(0,224,0,.5)' }}>
               {fmt(position)} / {fmt(duration)}
