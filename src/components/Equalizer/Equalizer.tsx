@@ -33,6 +33,10 @@ export default function Equalizer({
   const peaks = useRef<number[]>([]);
   const peakAt = useRef<number[]>([]);
 
+  // Latest play state read inside the draw loop without rebuilding the effect.
+  const isPlayingRef = useRef(isPlaying);
+  isPlayingRef.current = isPlaying;
+
   const freqFactors = useMemo(() => makeFreqFactors(barCount), [barCount]);
   const stops = useMemo(() => EQ_THEMES.find((t) => t.id === theme)?.stops ?? EQ_THEMES[0].stops, [theme]);
 
@@ -80,23 +84,29 @@ export default function Equalizer({
 
       ctx.shadowBlur = glow ? 12 : 0;
 
+      const playing = isPlayingRef.current;
+
       for (let i = 0; i < barCount; i++) {
-        const target = isPlaying
-          ? (Math.sin(ts * 0.001 * freqFactors[i]) * 0.5 + 0.5) *
+        // While playing, advance the bars. While paused, freeze them in place
+        // (don't decay to zero) so the waveform holds its last frame.
+        if (playing) {
+          const target =
+            (Math.sin(ts * 0.001 * freqFactors[i]) * 0.5 + 0.5) *
             (0.45 + 0.55 * Math.abs(Math.sin(ts * 0.0006 * (freqFactors[i] * 0.6 + 0.4)))) *
             usableH *
-            0.92
-          : 0;
+            0.92;
 
-        heights.current[i] = heights.current[i] * 0.82 + target * 0.18;
-        const h = heights.current[i];
+          heights.current[i] = heights.current[i] * 0.82 + target * 0.18;
 
-        if (h > peaks.current[i]) {
-          peaks.current[i] = h;
-          peakAt.current[i] = ts + 650;
-        } else if (ts > peakAt.current[i]) {
-          peaks.current[i] = Math.max(0, peaks.current[i] - usableH * 0.012);
+          if (heights.current[i] > peaks.current[i]) {
+            peaks.current[i] = heights.current[i];
+            peakAt.current[i] = ts + 650;
+          } else if (ts > peakAt.current[i]) {
+            peaks.current[i] = Math.max(0, peaks.current[i] - usableH * 0.012);
+          }
         }
+
+        const h = heights.current[i];
 
         const x = i * (barW + gap);
         const topColor = stops[0] === 'rainbow' ? `hsl(${(i / barCount) * 300}, 90%, 60%)` : stops[stops.length - 1];
@@ -141,7 +151,10 @@ export default function Equalizer({
       if (animRef.current) cancelAnimationFrame(animRef.current);
       ro.disconnect();
     };
-  }, [isPlaying, style, glow, barCount, freqFactors, stops]);
+    // isPlaying intentionally excluded — read via ref so pausing freezes the
+    // bars without tearing down/clearing the canvas.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [style, glow, barCount, freqFactors, stops]);
 
   return <canvas ref={canvasRef} className={className} />;
 }
