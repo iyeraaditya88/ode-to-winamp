@@ -37,14 +37,14 @@ export default function NowPlaying() {
   } = usePlayer();
 
   const { settings, update } = useEqualizerSettings();
-  const { lines, plainLyrics, isEstimated, currentLineIndex, isLoading } = useLyrics(currentTrack, position);
+  const { lines, plainLyrics, hasSynced, currentLineIndex, isLoading } = useLyrics(currentTrack, position);
   const activeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (activeRef.current) {
+    if (hasSynced && activeRef.current) {
       activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [currentLineIndex]);
+  }, [currentLineIndex, hasSynced]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -67,15 +67,12 @@ export default function NowPlaying() {
         <p className="text-sm text-[#00b4b4]/70 font-mono animate-pulse">Getting the words to the tune…</p>
       )}
 
-      {currentTrack && !isLoading && lines.length === 0 && !plainLyrics && (
+      {currentTrack && !isLoading && !hasSynced && !plainLyrics && (
         <p className="text-sm text-white/48 font-mono">No lyrics found for this track</p>
       )}
 
-      {lines.length > 0 && (
+      {hasSynced && (
         <div className="space-y-3 sm:space-y-4">
-          {isEstimated && (
-            <p className="text-[10px] text-white/30 font-mono mb-3 tracking-wide">≈ estimated timing</p>
-          )}
           {lines.map((line, i) => {
             const active = i === currentLineIndex;
             const next = i === currentLineIndex + 1;
@@ -102,10 +99,15 @@ export default function NowPlaying() {
         </div>
       )}
 
-      {lines.length === 0 && plainLyrics && (
-        <pre className="text-base text-white/72 font-sans leading-relaxed whitespace-pre-wrap">
-          {plainLyrics}
-        </pre>
+      {/* Plain lyrics (no timestamps) — shown statically, never highlighted. */}
+      {!hasSynced && plainLyrics && (
+        <div className="space-y-3 sm:space-y-4">
+          {plainLyrics.split('\n').map((line, i) => (
+            <p key={i} className="text-lg leading-snug text-white/70">
+              {line || <span className="text-white/15">♪</span>}
+            </p>
+          ))}
+        </div>
       )}
     </>
   );
