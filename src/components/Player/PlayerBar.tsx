@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef } from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { usePlayer } from '@/contexts/PlayerContext';
@@ -33,6 +34,8 @@ export default function PlayerBar() {
   const { settings, update } = useEqualizerSettings();
   const { share, copied } = useShareTrack();
   const art = currentTrack?.album.images.slice(-1)[0]?.url;
+  // Suppress the click that may follow a swipe so it doesn't toggle twice.
+  const justSwiped = useRef(false);
 
   // Clicking the visualizer cycles its waveform type and colour together.
   const cycleVisualizer = () => {
@@ -51,14 +54,19 @@ export default function PlayerBar() {
 
       <motion.div
         onClick={() => {
+          if (justSwiped.current) {
+            justSwiped.current = false;
+            return;
+          }
           if (currentTrack) toggleNowPlaying();
         }}
-        drag={currentTrack ? 'y' : false}
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0.4, bottom: 0 }}
-        dragSnapToOrigin
-        onDragEnd={(_e, info) => {
-          if (currentTrack && (info.offset.y < -24 || info.velocity.y < -250)) {
+        onPanEnd={(_e, info) => {
+          // Pan only detects the gesture — the bar itself never moves.
+          if (currentTrack && (info.offset.y < -40 || info.velocity.y < -350)) {
+            justSwiped.current = true;
+            window.setTimeout(() => {
+              justSwiped.current = false;
+            }, 400);
             toggleNowPlaying();
           }
         }}
@@ -68,11 +76,9 @@ export default function PlayerBar() {
           currentTrack ? 'cursor-pointer' : ''
         }`}
       >
-        {/* Grabber handle — the 'pull up' affordance */}
+        {/* Grabber handle — overlay so it doesn't add height to the bar */}
         {currentTrack && (
-          <div className="flex justify-center pt-1.5 pb-0.5">
-            <div className="h-1 w-9 rounded-full bg-white/25" />
-          </div>
+          <div className="absolute top-1 left-1/2 -translate-x-1/2 h-1 w-9 rounded-full bg-white/20" />
         )}
 
         {/* Mobile-only thin progress line across the top of the bar */}

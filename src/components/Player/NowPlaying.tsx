@@ -156,16 +156,13 @@ export default function NowPlaying() {
             </div>
           )}
 
-          {/* Drag handle: grabber + top bar — swipe/pull down to collapse */}
+          {/* Header — swipe/pull down to collapse (pan detects the gesture
+              without moving the panel). */}
           <motion.div
-            drag="y"
-            dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0, bottom: 0.5 }}
-            dragSnapToOrigin
-            onDragEnd={(_e, info) => {
-              if (info.offset.y > 90 || info.velocity.y > 400) toggleNowPlaying();
+            onPanEnd={(_e, info) => {
+              if (info.offset.y > 80 || info.velocity.y > 400) toggleNowPlaying();
             }}
-            className="shrink-0 cursor-grab active:cursor-grabbing"
+            className="shrink-0"
           >
             <div className="flex justify-center pt-2 pb-1">
               <div className="h-1 w-10 rounded-full bg-white/25" />
