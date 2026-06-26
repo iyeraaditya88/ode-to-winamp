@@ -47,10 +47,18 @@ export default function PlayerBar() {
           currentTrack ? 'cursor-pointer' : ''
         }`}
       >
-        <div className="mx-auto max-w-screen-2xl px-4 py-3">
-          <div className="grid grid-cols-3 items-center gap-4">
+        {/* Mobile-only thin progress line across the top of the bar */}
+        <div className="sm:hidden h-[2px] w-full bg-white/10">
+          <div
+            className="h-full bg-[#00b4b4] transition-[width] duration-300"
+            style={{ width: `${duration > 0 ? (position / duration) * 100 : 0}%` }}
+          />
+        </div>
+
+        <div className="mx-auto max-w-screen-2xl px-3 sm:px-4 py-2 sm:py-3">
+          <div className="flex items-center gap-2 sm:grid sm:grid-cols-3 sm:gap-4">
             {/* Left: track info + expand */}
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-3 min-w-0 flex-1 sm:flex-none">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -89,8 +97,37 @@ export default function PlayerBar() {
               )}
             </div>
 
-            {/* Center: transport + progress */}
-            <div className="flex flex-col items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            {/* Mobile-only compact transport (play/pause + next) */}
+            <div className="flex sm:hidden items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={() => setIsPlaying(!isPlaying)}
+                disabled={!currentTrack}
+                className="h-9 w-9 rounded-full flex items-center justify-center text-white disabled:opacity-30"
+              >
+                {isPlaying ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16" rx="1" />
+                    <rect x="14" y="4" width="4" height="16" rx="1" />
+                  </svg>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: 2 }}>
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={playNext}
+                disabled={!currentTrack}
+                className="h-9 w-9 rounded-full flex items-center justify-center text-white/80 disabled:opacity-30"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Center: transport + progress — desktop only */}
+            <div className="hidden sm:flex flex-col items-center gap-2" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center gap-4">
                 <button
                   onClick={toggleShuffle}
@@ -149,8 +186,8 @@ export default function PlayerBar() {
               <ProgressBar position={position} duration={duration} onSeek={setPosition} />
             </div>
 
-            {/* Right: equalizer + toggles + volume */}
-            <div className="flex items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
+            {/* Right: equalizer + toggles + volume — desktop only */}
+            <div className="hidden sm:flex items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
               {showEqualizer && (
                 <div className="h-7 w-24 rounded-sm border border-white/5 bg-black/40 overflow-hidden hidden md:block">
                   <Equalizer

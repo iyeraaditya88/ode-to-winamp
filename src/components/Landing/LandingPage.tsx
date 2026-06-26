@@ -82,8 +82,8 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
       )}
 
       <header className="absolute top-0 left-0 right-0 z-30">
-        <div className="mx-auto max-w-screen-2xl px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 py-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
             <svg width="24" height="24" viewBox="0 0 80 80" fill="none">
               <circle cx="40" cy="40" r="38" stroke="#00b4b4" strokeWidth="2" opacity="0.4" />
               <circle cx="40" cy="40" r="10" fill="#00b4b4" opacity="0.9" />
@@ -94,22 +94,23 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
             </span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             {total > 0 && (
-              <span className="text-xs text-white/50 font-mono hidden sm:inline">{total} liked songs</span>
+              <span className="text-xs text-white/50 font-mono hidden md:inline">{total} liked songs</span>
             )}
             <button
               onClick={() => setSearchOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-sm border border-white/10 bg-black/30 backdrop-blur-sm text-white/62 hover:text-white/85 hover:border-white/20 transition-colors text-xs font-mono"
+              aria-label="Search"
+              className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-sm border border-white/10 bg-black/30 backdrop-blur-sm text-white/62 hover:text-white/85 hover:border-white/20 transition-colors text-xs font-mono"
             >
               <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
               </svg>
-              Search <span className="text-white/48">/</span>
+              <span className="hidden sm:inline">Search <span className="text-white/48">/</span></span>
             </button>
             <a
               href="/api/auth/logout"
-              className="text-xs text-white/48 hover:text-white/68 transition-colors font-mono"
+              className="text-xs text-white/48 hover:text-white/68 transition-colors font-mono whitespace-nowrap"
             >
               Sign out
             </a>

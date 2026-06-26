@@ -88,10 +88,10 @@ export default function NowPlaying() {
             </button>
           </div>
 
-          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-8 px-6 lg:px-12 pb-8 overflow-hidden">
+          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 px-4 sm:px-6 lg:px-12 pb-6 overflow-y-auto lg:overflow-hidden">
             {/* Left: art, controls, equalizer */}
-            <div className="flex flex-col items-center justify-center gap-6 min-h-0">
-              <div className="relative w-full max-w-sm aspect-square rounded-lg overflow-hidden shadow-2xl">
+            <div className="flex flex-col items-center gap-5 lg:gap-6 lg:justify-center min-h-0">
+              <div className="relative w-full max-w-[240px] sm:max-w-xs lg:max-w-sm aspect-square rounded-lg overflow-hidden shadow-2xl">
                 {art ? (
                   <Image src={art} alt={currentTrack?.album.name ?? ''} fill className="object-cover" />
                 ) : (
@@ -206,9 +206,9 @@ export default function NowPlaying() {
 
             {/* Right: lyrics + queue */}
             <div className="flex flex-col min-h-0 gap-6">
-              <div className="flex-1 min-h-0 flex flex-col">
+              <div className="lg:flex-1 lg:min-h-0 flex flex-col">
                 <span className="text-xs font-mono tracking-[0.3em] text-white/62 uppercase mb-3">Lyrics</span>
-                <div className="flex-1 min-h-0 overflow-y-auto pr-2">
+                <div className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto pr-2">
                   {!currentTrack && <p className="text-sm text-white/48 font-mono">Play a song to see lyrics</p>}
 
                   {currentTrack && isLoading && (

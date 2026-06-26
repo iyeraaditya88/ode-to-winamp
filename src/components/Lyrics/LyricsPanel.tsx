@@ -30,7 +30,7 @@ export default function LyricsPanel({ isOpen, onClose, track, positionMs }: Lyri
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: '100%', opacity: 0 }}
           transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-          className="fixed right-0 top-0 bottom-20 z-40 w-80 border-l border-white/5 bg-[#0d0d0d]/95 backdrop-blur-md flex flex-col"
+          className="fixed right-0 top-0 bottom-20 z-40 w-80 max-w-[88vw] border-l border-white/5 bg-[#0d0d0d]/95 backdrop-blur-md flex flex-col"
         >
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
             <span className="text-xs font-mono tracking-widest text-white/62 uppercase">Lyrics</span>

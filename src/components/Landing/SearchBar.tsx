@@ -56,8 +56,8 @@ export default function SearchBar({
           className="fixed inset-0 z-40 bg-[#080808]/95 backdrop-blur-md flex flex-col"
           onClick={(e) => e.target === e.currentTarget && onClose()}
         >
-          <div className="flex items-center border-b border-white/10 px-8 py-6">
-            <svg className="mr-4 text-white/55 shrink-0" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+          <div className="flex items-center border-b border-white/10 px-4 sm:px-8 py-4 sm:py-6">
+            <svg className="mr-3 sm:mr-4 text-white/55 shrink-0" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
             </svg>
             <input
@@ -66,7 +66,7 @@ export default function SearchBar({
               value={query}
               onChange={(e) => onQueryChange(e.target.value)}
               placeholder="Search songs, artists…"
-              className="flex-1 bg-transparent text-2xl text-white placeholder-white/20 outline-none font-light tracking-wide"
+              className="flex-1 min-w-0 bg-transparent text-lg sm:text-2xl text-white placeholder-white/20 outline-none font-light tracking-wide"
             />
             <button
               onClick={onClose}
@@ -76,7 +76,7 @@ export default function SearchBar({
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-8 py-4">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-4">
             {isLoading && (
               <div className="flex items-center justify-center py-16 text-white/48 text-sm">
                 Searching…
