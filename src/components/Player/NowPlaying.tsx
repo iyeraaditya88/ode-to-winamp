@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useLyrics } from '@/hooks/useLyrics';
 import { useShareTrack } from '@/hooks/useShareTrack';
+import { useRomanize } from '@/hooks/useRomanize';
+import { hasNonLatin } from '@/lib/romanize';
 import { useEqualizerSettings, EQ_THEMES, EQ_STYLES } from '@/hooks/useEqualizerSettings';
 import ProgressBar from './ProgressBar';
 import VolumeControl from './VolumeControl';
@@ -40,7 +42,12 @@ export default function NowPlaying() {
   const { settings, update } = useEqualizerSettings();
   const { lines, plainLyrics, hasSynced, currentLineIndex, isLoading } = useLyrics(currentTrack, position);
   const { share, copied } = useShareTrack();
+  const { enabled: romanized, toggle: toggleRomanize, tx } = useRomanize();
   const activeRef = useRef<HTMLDivElement>(null);
+
+  const needsRomanize = hasNonLatin(
+    hasSynced ? lines.map((l) => l.text).join(' ') : plainLyrics ?? ''
+  );
 
   useEffect(() => {
     if (hasSynced && activeRef.current) {
@@ -73,6 +80,19 @@ export default function NowPlaying() {
         <p className="text-sm text-white/48 font-mono">No lyrics found for this track</p>
       )}
 
+      {needsRomanize && (hasSynced || plainLyrics) && (
+        <button
+          onClick={toggleRomanize}
+          className={`mb-4 px-2.5 py-1 rounded-sm border text-[10px] font-mono tracking-widest uppercase transition-colors ${
+            romanized
+              ? 'border-[#00b4b4]/50 text-[#00b4b4]'
+              : 'border-white/15 text-white/55 hover:text-white/80'
+          }`}
+        >
+          {romanized ? 'Original' : 'Romanize'}
+        </button>
+      )}
+
       {hasSynced && (
         <div className="space-y-3 sm:space-y-4">
           {lines.map((line, i) => {
@@ -94,7 +114,7 @@ export default function NowPlaying() {
                     : 'border-transparent text-white/45 text-lg'
                 }`}
               >
-                {line.text || <span className="text-white/15">♪</span>}
+                {line.text ? tx(line.text) : <span className="text-white/15">♪</span>}
               </div>
             );
           })}
@@ -106,7 +126,7 @@ export default function NowPlaying() {
         <div className="space-y-3 sm:space-y-4">
           {plainLyrics.split('\n').map((line, i) => (
             <p key={i} className="text-lg leading-snug text-white/70">
-              {line || <span className="text-white/15">♪</span>}
+              {line ? tx(line) : <span className="text-white/15">♪</span>}
             </p>
           ))}
         </div>

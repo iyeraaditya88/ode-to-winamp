@@ -3,6 +3,8 @@
 import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLyrics } from '@/hooks/useLyrics';
+import { useRomanize } from '@/hooks/useRomanize';
+import { hasNonLatin } from '@/lib/romanize';
 import type { SpotifyTrack } from '@/types/spotify';
 
 interface LyricsPanelProps {
@@ -14,7 +16,12 @@ interface LyricsPanelProps {
 
 export default function LyricsPanel({ isOpen, onClose, track, positionMs }: LyricsPanelProps) {
   const { lines, plainLyrics, hasSynced, currentLineIndex, isLoading } = useLyrics(track, positionMs);
+  const { enabled: romanized, toggle: toggleRomanize, tx } = useRomanize();
   const activeRef = useRef<HTMLDivElement>(null);
+
+  const needsRomanize = hasNonLatin(
+    hasSynced ? lines.map((l) => l.text).join(' ') : plainLyrics ?? ''
+  );
 
   useEffect(() => {
     if (hasSynced && activeRef.current) {
@@ -33,7 +40,20 @@ export default function LyricsPanel({ isOpen, onClose, track, positionMs }: Lyri
           className="fixed right-0 top-0 bottom-20 z-40 w-80 max-w-[88vw] border-l border-white/5 bg-[#0d0d0d]/95 backdrop-blur-md flex flex-col"
         >
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-            <span className="text-xs font-mono tracking-widest text-white/62 uppercase">Lyrics</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-mono tracking-widest text-white/62 uppercase">Lyrics</span>
+              {needsRomanize && (hasSynced || plainLyrics) && (
+                <button
+                  onClick={toggleRomanize}
+                  title="Romanize lyrics"
+                  className={`px-1.5 py-0.5 rounded-sm border text-[9px] font-mono tracking-wider uppercase transition-colors ${
+                    romanized ? 'border-[#00b4b4]/50 text-[#00b4b4]' : 'border-white/15 text-white/55 hover:text-white/80'
+                  }`}
+                >
+                  {romanized ? 'Original' : 'Aa'}
+                </button>
+              )}
+            </div>
             <button
               onClick={onClose}
               className="text-white/55 hover:text-white/85 transition-colors"
@@ -104,7 +124,7 @@ export default function LyricsPanel({ isOpen, onClose, track, positionMs }: Lyri
                           : 'border-transparent text-white/45 text-sm'
                       }`}
                     >
-                      {line.text || <span className="text-white/15">·</span>}
+                      {line.text ? tx(line.text) : <span className="text-white/15">·</span>}
                     </div>
                   );
                 })}
@@ -116,7 +136,7 @@ export default function LyricsPanel({ isOpen, onClose, track, positionMs }: Lyri
               <div className="space-y-2">
                 {plainLyrics.split('\n').map((line, i) => (
                   <p key={i} className="text-sm leading-relaxed text-white/70">
-                    {line || <span className="text-white/15">·</span>}
+                    {line ? tx(line) : <span className="text-white/15">·</span>}
                   </p>
                 ))}
               </div>
