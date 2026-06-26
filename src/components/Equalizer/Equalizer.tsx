@@ -86,17 +86,33 @@ export default function Equalizer({
 
       const playing = isPlayingRef.current;
 
+      // Simulated rhythm. True beat-sync isn't possible here (the Spotify SDK's
+      // audio is DRM-protected so the Web Audio API can't analyse it, and the
+      // Audio-Analysis API is blocked for this app), so a steady tempo drives a
+      // pumping envelope — bass kicks on the beat, treble shimmers — which reads
+      // as musical rather than the old random sine noise.
+      const t = ts / 1000;
+      const beatPeriod = 60 / 120; // ~120 BPM
+      const beatEnv = Math.pow(1 - (t % beatPeriod) / beatPeriod, 2.2);
+      const offEnv = Math.pow(1 - ((t + beatPeriod / 2) % beatPeriod) / beatPeriod, 3) * 0.5;
+
       for (let i = 0; i < barCount; i++) {
         // While playing, advance the bars. While paused, freeze them in place
         // (don't decay to zero) so the waveform holds its last frame.
         if (playing) {
+          const norm = barCount > 1 ? i / (barCount - 1) : 0;
+          const bass = 1 - norm;
+          const shimmer = Math.sin(t * (5 + norm * 22) + i * 1.3) * 0.5 + 0.5;
           const target =
-            (Math.sin(ts * 0.001 * freqFactors[i]) * 0.5 + 0.5) *
-            (0.45 + 0.55 * Math.abs(Math.sin(ts * 0.0006 * (freqFactors[i] * 0.6 + 0.4)))) *
+            (beatEnv * (0.42 + 0.58 * bass) +
+              offEnv * (0.35 * bass) +
+              shimmer * (0.12 + 0.33 * norm)) *
             usableH *
-            0.92;
+            0.95;
 
-          heights.current[i] = heights.current[i] * 0.82 + target * 0.18;
+          // Punchy attack on the beat, smoother decay.
+          const k = target > heights.current[i] ? 0.5 : 0.16;
+          heights.current[i] = heights.current[i] * (1 - k) + target * k;
 
           if (heights.current[i] > peaks.current[i]) {
             peaks.current[i] = heights.current[i];

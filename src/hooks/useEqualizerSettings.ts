@@ -26,8 +26,9 @@ export const EQ_STYLES: { id: EqStyle; label: string }[] = [
   { id: 'mirror', label: 'Mirror' },
 ];
 
-const DEFAULT: EqSettings = { theme: 'winamp', style: 'blocks', barCount: 32 };
-const KEY = 'otw_eq_settings';
+const DEFAULT: EqSettings = { theme: 'rainbow', style: 'blocks', barCount: 32 };
+// Bumped key so the new rainbow-blocks default applies even for returning users.
+const KEY = 'otw_eq_settings_v2';
 
 export function useEqualizerSettings() {
   const [settings, setSettings] = useState<EqSettings>(DEFAULT);
