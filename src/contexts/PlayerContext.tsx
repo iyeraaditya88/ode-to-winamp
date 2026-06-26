@@ -58,6 +58,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const deviceIdRef = useRef<string | null>(null);
   const advancingRef = useRef(false);
   const lastPosRef = useRef(0);
+  const activatedRef = useRef(false);
+
+  // Mobile browsers block audio until the SDK's element is activated inside a
+  // user gesture. Call this from the first tap that starts playback.
+  const ensureActivated = useCallback(() => {
+    if (activatedRef.current) return;
+    const p = playerRef.current as unknown as { activateElement?: () => Promise<void> } | null;
+    if (p?.activateElement) {
+      activatedRef.current = true;
+      p.activateElement().catch(() => {
+        activatedRef.current = false;
+      });
+    }
+  }, []);
 
   useEffect(() => { queueRef.current = queue; }, [queue]);
   useEffect(() => { indexRef.current = currentIndex; }, [currentIndex]);
@@ -237,6 +251,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const playTrack = useCallback(
     (track: SpotifyTrack, context?: SpotifyTrack[]) => {
+      // Must run synchronously inside the tap gesture to unlock mobile audio.
+      ensureActivated();
       const q = context ?? queueRef.current;
       if (context) {
         setQueue(context);
@@ -253,7 +269,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setShowLyrics(true);
       }
     },
-    [playUri]
+    [playUri, ensureActivated]
   );
 
   const upcoming = useCallback(() => {
@@ -277,8 +293,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     showEqualizer,
     showNowPlaying,
     setIsPlaying: async (v) => {
-      if (v) await playerRef.current?.resume();
-      else await playerRef.current?.pause();
+      if (v) {
+        ensureActivated();
+        await playerRef.current?.resume();
+      } else {
+        await playerRef.current?.pause();
+      }
       setIsPlaying(v);
     },
     setPosition: async (ms) => {
