@@ -6,6 +6,7 @@ import { useLikedSongs } from '@/hooks/useLikedSongs';
 import { useSearch } from '@/hooks/useSearch';
 import { usePlayer } from '@/contexts/PlayerContext';
 import SearchBar from './SearchBar';
+import Logo from '@/components/Logo';
 import type { SpotifyTrack } from '@/types/spotify';
 
 const PhantomGrid = dynamic(() => import('@/components/Grid/PhantomGrid'), { ssr: false });
@@ -84,11 +85,7 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
       <header className="absolute top-0 left-0 right-0 z-30">
         <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 py-4 flex items-center justify-between gap-2">
           <div className="flex items-center gap-3 min-w-0">
-            <svg width="24" height="24" viewBox="0 0 80 80" fill="none">
-              <circle cx="40" cy="40" r="38" stroke="#00b4b4" strokeWidth="2" opacity="0.4" />
-              <circle cx="40" cy="40" r="10" fill="#00b4b4" opacity="0.9" />
-              <path d="M14 52 L22 28 L30 44 L40 24 L50 44 L58 28 L66 52" stroke="#00b4b4" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-            </svg>
+            <Logo size={26} glow={false} />
             <span className="text-sm font-mono tracking-[0.2em] text-white/80 uppercase">
               Ode to Winamp
             </span>

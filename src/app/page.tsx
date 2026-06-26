@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useQuery } from '@tanstack/react-query';
 import LandingPage from '@/components/Landing/LandingPage';
+import Logo from '@/components/Logo';
 
 const LogoIntro = dynamic(() => import('@/components/Intro/LogoIntro'), { ssr: false });
 
@@ -11,25 +12,7 @@ function LoginScreen({ error }: { error?: string }) {
   return (
     <div className="min-h-screen bg-[#080808] flex flex-col items-center justify-center px-6">
       <div className="text-center max-w-md w-full">
-        <svg
-          className="mx-auto mb-8"
-          width="64"
-          height="64"
-          viewBox="0 0 80 80"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <circle cx="40" cy="40" r="38" stroke="#00b4b4" strokeWidth="1.5" opacity="0.3" />
-          <circle cx="40" cy="40" r="10" fill="#00b4b4" opacity="0.8" />
-          <path
-            d="M14 52 L22 28 L30 44 L40 24 L50 44 L58 28 L66 52"
-            stroke="#00b4b4"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill="none"
-          />
-        </svg>
+        <Logo size={72} className="mx-auto mb-8" />
 
         <h1 className="text-2xl font-light tracking-[0.15em] text-white/90 mb-2 uppercase">
           Ode to Winamp

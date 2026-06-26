@@ -1,5 +1,5 @@
 // Ode to Winamp — service worker (offline shell + installability).
-const CACHE = 'otw-v1';
+const CACHE = 'otw-v2';
 const PRECACHE = ['/', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png'];
 
 self.addEventListener('install', (event) => {
