@@ -84,26 +84,30 @@ export default function LyricsPanel({ isOpen, onClose, track, positionMs }: Lyri
             )}
 
             {lines.length > 0 && (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {isEstimated && (
                   <p className="text-[10px] text-white/30 font-mono mb-2 tracking-wide">≈ estimated timing</p>
                 )}
                 {lines.map((line, i) => {
                   const isActive = i === currentLineIndex;
+                  const isNext = i === currentLineIndex + 1;
                   const isPast = i < currentLineIndex;
                   return (
                     <div
                       key={i}
                       ref={isActive ? activeRef : null}
-                      className={`py-1 text-sm leading-relaxed transition-all duration-300 ${
+                      style={isActive ? { textShadow: '0 0 18px rgba(0,180,180,0.35)' } : undefined}
+                      className={`border-l-2 pl-3 py-0.5 leading-relaxed transition-all duration-300 ${
                         isActive
-                          ? 'text-white font-medium text-base'
+                          ? 'border-[#00b4b4] text-white font-semibold text-lg'
+                          : isNext
+                          ? 'border-transparent text-white/70 text-sm'
                           : isPast
-                          ? 'text-white/50'
-                          : 'text-white/62'
+                          ? 'border-transparent text-white/25 text-sm'
+                          : 'border-transparent text-white/45 text-sm'
                       }`}
                     >
-                      {line.text || <span className="text-white/10">·</span>}
+                      {line.text || <span className="text-white/15">·</span>}
                     </div>
                   );
                 })}

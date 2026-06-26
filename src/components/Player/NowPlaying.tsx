@@ -72,26 +72,30 @@ export default function NowPlaying() {
       )}
 
       {lines.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-3 sm:space-y-4">
           {isEstimated && (
             <p className="text-[10px] text-white/30 font-mono mb-3 tracking-wide">≈ estimated timing</p>
           )}
           {lines.map((line, i) => {
             const active = i === currentLineIndex;
+            const next = i === currentLineIndex + 1;
             const past = i < currentLineIndex;
             return (
               <div
                 key={i}
                 ref={active ? activeRef : null}
-                className={`transition-all duration-300 leading-snug ${
+                style={active ? { textShadow: '0 0 26px rgba(0,180,180,0.35)' } : undefined}
+                className={`border-l-2 pl-4 leading-snug transition-all duration-300 ${
                   active
-                    ? 'text-white text-2xl font-semibold'
+                    ? 'border-[#00b4b4] text-white text-2xl sm:text-3xl font-bold'
+                    : next
+                    ? 'border-transparent text-white/70 text-lg sm:text-xl'
                     : past
-                    ? 'text-white/50 text-lg'
-                    : 'text-white/62 text-lg'
+                    ? 'border-transparent text-white/25 text-lg'
+                    : 'border-transparent text-white/45 text-lg'
                 }`}
               >
-                {line.text || <span className="text-white/10">♪</span>}
+                {line.text || <span className="text-white/15">♪</span>}
               </div>
             );
           })}
