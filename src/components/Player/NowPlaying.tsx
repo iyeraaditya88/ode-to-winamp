@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, useTransform, animate, type MotionValue } from 'framer-motion';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useLyrics } from '@/hooks/useLyrics';
 import { useShareTrack } from '@/hooks/useShareTrack';
@@ -19,10 +19,15 @@ function fmt(ms: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-export default function NowPlaying() {
+const SHEET_SPRING = { type: 'spring', stiffness: 360, damping: 38 } as const;
+
+interface NowPlayingProps {
+  progress: MotionValue<number>;
+  onCollapse: () => void;
+}
+
+export default function NowPlaying({ progress, onCollapse }: NowPlayingProps) {
   const {
-    showNowPlaying,
-    toggleNowPlaying,
     currentTrack,
     isPlaying,
     position,
@@ -38,6 +43,11 @@ export default function NowPlaying() {
     playTrack,
     upcoming,
   } = usePlayer();
+
+  // Sheet follows the shared progress value (0 collapsed → 1 expanded).
+  const sheetY = useTransform(progress, [0, 1], ['100%', '0%']);
+  const sheetOpacity = useTransform(progress, [0, 0.2], [0, 1]);
+  const headerStart = useRef(0);
 
   const { settings, update } = useEqualizerSettings();
   const { lines, plainLyrics, hasSynced, currentLineIndex, isLoading } = useLyrics(currentTrack, position);
@@ -57,11 +67,11 @@ export default function NowPlaying() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && showNowPlaying) toggleNowPlaying();
+      if (e.key === 'Escape') onCollapse();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [showNowPlaying, toggleNowPlaying]);
+  }, [onCollapse]);
 
   const art = currentTrack?.album.images[0]?.url;
   const nextUp = upcoming();
@@ -135,14 +145,10 @@ export default function NowPlaying() {
   );
 
   return (
-    <AnimatePresence>
-      {showNowPlaying && (
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 30 }}
-          transition={{ type: 'spring', damping: 30, stiffness: 280 }}
           style={{
+            y: sheetY,
+            opacity: sheetOpacity,
             paddingTop: 'env(safe-area-inset-top)',
             paddingBottom: 'env(safe-area-inset-bottom)',
           }}
@@ -156,13 +162,23 @@ export default function NowPlaying() {
             </div>
           )}
 
-          {/* Header — swipe/pull down to collapse (pan detects the gesture
-              without moving the panel). */}
+          {/* Header doubles as the drag handle — pull down to collapse; the
+              sheet follows the drag via the shared progress value. */}
           <motion.div
-            onPanEnd={(_e, info) => {
-              if (info.offset.y > 80 || info.velocity.y > 400) toggleNowPlaying();
+            onPanStart={() => {
+              headerStart.current = progress.get();
             }}
-            className="shrink-0"
+            onPan={(_e, info) => {
+              const p = headerStart.current - info.offset.y / window.innerHeight;
+              progress.set(Math.max(0, Math.min(1, p)));
+            }}
+            onPanEnd={(_e, info) => {
+              const p = progress.get();
+              const close = info.velocity.y > 350 ? true : info.velocity.y < -350 ? false : p < 0.6;
+              if (close) onCollapse();
+              else animate(progress, 1, SHEET_SPRING);
+            }}
+            className="shrink-0 cursor-grab active:cursor-grabbing"
           >
             <div className="flex justify-center pt-2 pb-1">
               <div className="h-1 w-10 rounded-full bg-white/25" />
@@ -197,7 +213,7 @@ export default function NowPlaying() {
                 <span className="hidden sm:inline">{copied ? 'COPIED' : 'SHARE'}</span>
               </button>
               <button
-                onClick={toggleNowPlaying}
+                onClick={onCollapse}
                 className="flex items-center gap-2 text-white/62 hover:text-white transition-colors text-xs font-mono tracking-widest"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -391,7 +407,5 @@ export default function NowPlaying() {
           </div>
           )}
         </motion.div>
-      )}
-    </AnimatePresence>
   );
 }

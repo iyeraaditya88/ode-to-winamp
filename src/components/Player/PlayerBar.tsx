@@ -1,8 +1,8 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import Image from 'next/image';
-import { motion } from 'framer-motion';
+import { motion, useMotionValue, animate } from 'framer-motion';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useEqualizerSettings, EQ_STYLES, EQ_THEMES } from '@/hooks/useEqualizerSettings';
 import { useShareTrack } from '@/hooks/useShareTrack';
@@ -11,6 +11,8 @@ import VolumeControl from './VolumeControl';
 import Equalizer from '@/components/Equalizer/Equalizer';
 import LyricsPanel from '@/components/Lyrics/LyricsPanel';
 import NowPlaying from './NowPlaying';
+
+const SHEET_SPRING = { type: 'spring', stiffness: 360, damping: 38 } as const;
 
 export default function PlayerBar() {
   const {
@@ -25,7 +27,6 @@ export default function PlayerBar() {
     setPosition,
     setVolume,
     toggleLyrics,
-    toggleNowPlaying,
     toggleShuffle,
     playNext,
     playPrev,
@@ -36,6 +37,22 @@ export default function PlayerBar() {
   const art = currentTrack?.album.images.slice(-1)[0]?.url;
   // Suppress the click that may follow a swipe so it doesn't toggle twice.
   const justSwiped = useRef(false);
+
+  // Bottom-sheet expand: one shared progress value (0 collapsed → 1 expanded)
+  // drives the Now Playing sheet so it follows the drag, then snaps.
+  const sheetProgress = useMotionValue(0);
+  const [sheetMounted, setSheetMounted] = useState(false);
+  const panStart = useRef(0);
+
+  const openSheet = useCallback(() => {
+    if (!currentTrack) return;
+    setSheetMounted(true);
+    animate(sheetProgress, 1, SHEET_SPRING);
+  }, [sheetProgress, currentTrack]);
+
+  const closeSheet = useCallback(() => {
+    animate(sheetProgress, 0, { ...SHEET_SPRING, onComplete: () => setSheetMounted(false) });
+  }, [sheetProgress]);
 
   // Clicking the visualizer cycles its waveform type and colour together.
   const cycleVisualizer = () => {
@@ -50,7 +67,7 @@ export default function PlayerBar() {
   return (
     <>
       <LyricsPanel isOpen={showLyrics} onClose={toggleLyrics} track={currentTrack} positionMs={position} />
-      <NowPlaying />
+      {sheetMounted && <NowPlaying progress={sheetProgress} onCollapse={closeSheet} />}
 
       <motion.div
         onClick={() => {
@@ -58,19 +75,32 @@ export default function PlayerBar() {
             justSwiped.current = false;
             return;
           }
-          if (currentTrack) toggleNowPlaying();
+          openSheet();
+        }}
+        onPanStart={() => {
+          if (currentTrack) panStart.current = sheetProgress.get();
+        }}
+        onPan={(_e, info) => {
+          if (!currentTrack) return;
+          // Ignore mostly-horizontal gestures so the seek/volume sliders work.
+          if (Math.abs(info.offset.x) > Math.abs(info.offset.y) + 6) return;
+          setSheetMounted(true);
+          const p = panStart.current - info.offset.y / window.innerHeight;
+          sheetProgress.set(Math.max(0, Math.min(1, p)));
         }}
         onPanEnd={(_e, info) => {
-          // Pan only detects the gesture — the bar itself never moves.
-          if (currentTrack && (info.offset.y < -40 || info.velocity.y < -350)) {
-            justSwiped.current = true;
-            window.setTimeout(() => {
-              justSwiped.current = false;
-            }, 400);
-            toggleNowPlaying();
-          }
+          if (!currentTrack) return;
+          if (Math.abs(info.offset.x) > Math.abs(info.offset.y) + 6) return;
+          justSwiped.current = true;
+          window.setTimeout(() => {
+            justSwiped.current = false;
+          }, 350);
+          const p = sheetProgress.get();
+          const open = info.velocity.y < -350 ? true : info.velocity.y > 350 ? false : p > 0.35;
+          if (open) openSheet();
+          else closeSheet();
         }}
-        title={currentTrack ? 'Tap or swipe up to expand' : undefined}
+        title={currentTrack ? 'Tap or drag up to expand' : undefined}
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         className={`fixed bottom-0 left-0 right-0 z-30 border-t border-white/5 bg-[#111111]/95 backdrop-blur-md ${
           currentTrack ? 'cursor-pointer' : ''
@@ -96,7 +126,7 @@ export default function PlayerBar() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  toggleNowPlaying();
+                  openSheet();
                 }}
                 disabled={!currentTrack}
                 title="Expand"
@@ -116,7 +146,7 @@ export default function PlayerBar() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      toggleNowPlaying();
+                      openSheet();
                     }}
                     className="block truncate text-xs font-medium text-white/90 hover:text-white text-left"
                   >
