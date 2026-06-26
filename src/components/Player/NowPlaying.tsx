@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePlayer } from '@/contexts/PlayerContext';
@@ -9,6 +9,7 @@ import { useEqualizerSettings, EQ_THEMES, EQ_STYLES } from '@/hooks/useEqualizer
 import ProgressBar from './ProgressBar';
 import VolumeControl from './VolumeControl';
 import Equalizer from '@/components/Equalizer/Equalizer';
+import ClassicWinamp from './ClassicWinamp';
 
 function fmt(ms: number) {
   const s = Math.floor(ms / 1000);
@@ -55,6 +56,52 @@ export default function NowPlaying() {
 
   const art = currentTrack?.album.images[0]?.url;
   const nextUp = upcoming();
+  const [classic, setClassic] = useState(false);
+
+  // Lyrics content, shared between the modern and classic layouts.
+  const lyricsScroll = (
+    <>
+      {!currentTrack && <p className="text-sm text-white/48 font-mono">Play a song to see lyrics</p>}
+
+      {currentTrack && isLoading && (
+        <p className="text-sm text-[#00b4b4]/70 font-mono animate-pulse">Getting the words to the tune…</p>
+      )}
+
+      {currentTrack && !isLoading && !hasSynced && !plainLyrics && (
+        <p className="text-sm text-white/48 font-mono">No lyrics found for this track</p>
+      )}
+
+      {hasSynced && (
+        <div className="space-y-2">
+          {lines.map((line, i) => {
+            const active = i === currentLineIndex;
+            const past = i < currentLineIndex;
+            return (
+              <div
+                key={i}
+                ref={active ? activeRef : null}
+                className={`transition-all duration-300 leading-snug ${
+                  active
+                    ? 'text-white text-2xl font-semibold'
+                    : past
+                    ? 'text-white/50 text-lg'
+                    : 'text-white/62 text-lg'
+                }`}
+              >
+                {line.text || <span className="text-white/10">♪</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {!hasSynced && plainLyrics && (
+        <pre className="text-base text-white/72 font-sans leading-relaxed whitespace-pre-wrap">
+          {plainLyrics}
+        </pre>
+      )}
+    </>
+  );
 
   return (
     <AnimatePresence>
@@ -75,19 +122,50 @@ export default function NowPlaying() {
           )}
 
           {/* Top bar */}
-          <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex items-center justify-between px-4 sm:px-6 py-4">
             <span className="text-xs font-mono tracking-[0.3em] text-white/62 uppercase">Now Playing</span>
-            <button
-              onClick={toggleNowPlaying}
-              className="flex items-center gap-2 text-white/62 hover:text-white transition-colors text-xs font-mono tracking-widest"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              CLOSE
-            </button>
+            <div className="flex items-center gap-3 sm:gap-5">
+              <button
+                onClick={() => setClassic((c) => !c)}
+                className="text-[10px] sm:text-xs font-mono tracking-widest px-2.5 sm:px-3 py-1.5 rounded-sm border border-[#00b4b4]/40 text-[#00b4b4] hover:bg-[#00b4b4]/10 transition-colors whitespace-nowrap"
+              >
+                {classic ? 'NEO-CLASSIC' : 'CLASSIC'}
+              </button>
+              <button
+                onClick={toggleNowPlaying}
+                className="flex items-center gap-2 text-white/62 hover:text-white transition-colors text-xs font-mono tracking-widest"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                CLOSE
+              </button>
+            </div>
           </div>
 
+          {classic ? (
+            <div className="flex-1 min-h-0 flex flex-col lg:grid lg:grid-cols-2 gap-6 lg:gap-8 px-4 sm:px-6 lg:px-12 pb-6 overflow-y-auto lg:overflow-hidden">
+              {/* Left: classic Winamp player */}
+              <div className="flex items-start justify-center lg:min-h-0 lg:overflow-y-auto py-2 shrink-0 w-full">
+                <ClassicWinamp />
+              </div>
+
+              {/* Right: album art + lyrics */}
+              <div className="flex flex-col lg:min-h-0 gap-5 shrink-0 w-full">
+                <div className="relative w-full max-w-[220px] sm:max-w-xs aspect-square rounded-lg overflow-hidden shadow-2xl mx-auto lg:mx-0">
+                  {art ? (
+                    <Image src={art} alt={currentTrack?.album.name ?? ''} fill className="object-cover" />
+                  ) : (
+                    <div className="h-full w-full bg-white/5" />
+                  )}
+                </div>
+                <div className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
+                  <span className="block text-xs font-mono tracking-[0.3em] text-white/62 uppercase mb-3">Lyrics</span>
+                  {lyricsScroll}
+                </div>
+              </div>
+            </div>
+          ) : (
           <div className="flex-1 min-h-0 flex flex-col lg:grid lg:grid-cols-2 gap-6 lg:gap-8 px-4 sm:px-6 lg:px-12 pb-6 overflow-y-auto lg:overflow-hidden">
             {/* Left: art, controls, equalizer */}
             <div className="flex flex-col items-center gap-5 lg:gap-6 lg:justify-center lg:min-h-0 shrink-0 w-full">
@@ -208,47 +286,7 @@ export default function NowPlaying() {
             <div className="flex flex-col lg:min-h-0 gap-6 shrink-0 w-full">
               <div className="lg:flex-1 lg:min-h-0 flex flex-col">
                 <span className="text-xs font-mono tracking-[0.3em] text-white/62 uppercase mb-3">Lyrics</span>
-                <div className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto pr-2">
-                  {!currentTrack && <p className="text-sm text-white/48 font-mono">Play a song to see lyrics</p>}
-
-                  {currentTrack && isLoading && (
-                    <p className="text-sm text-[#00b4b4]/70 font-mono animate-pulse">Getting the words to the tune…</p>
-                  )}
-
-                  {currentTrack && !isLoading && !hasSynced && !plainLyrics && (
-                    <p className="text-sm text-white/48 font-mono">No lyrics found for this track</p>
-                  )}
-
-                  {hasSynced && (
-                    <div className="space-y-2">
-                      {lines.map((line, i) => {
-                        const active = i === currentLineIndex;
-                        const past = i < currentLineIndex;
-                        return (
-                          <div
-                            key={i}
-                            ref={active ? activeRef : null}
-                            className={`transition-all duration-300 leading-snug ${
-                              active
-                                ? 'text-white text-2xl font-semibold'
-                                : past
-                                ? 'text-white/50 text-lg'
-                                : 'text-white/62 text-lg'
-                            }`}
-                          >
-                            {line.text || <span className="text-white/10">♪</span>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {!hasSynced && plainLyrics && (
-                    <pre className="text-base text-white/72 font-sans leading-relaxed whitespace-pre-wrap">
-                      {plainLyrics}
-                    </pre>
-                  )}
-                </div>
+                <div className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto pr-2">{lyricsScroll}</div>
               </div>
 
               {/* Queue */}
@@ -285,6 +323,7 @@ export default function NowPlaying() {
               )}
             </div>
           </div>
+          )}
         </motion.div>
       )}
     </AnimatePresence>

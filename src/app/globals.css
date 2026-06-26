@@ -48,6 +48,16 @@ body {
   100% { height: 100%; }
 }
 
+/* Classic Winamp scrolling title */
+.wa-marquee {
+  display: inline-block;
+  white-space: nowrap;
+  animation: waMarquee 16s linear infinite;
+}
+@keyframes waMarquee {
+  to { transform: translateX(-50%); }
+}
+
 /* ---- Logo intro (pure CSS so it stays smooth while WebGL initializes) ---- */
 .intro-overlay {
   position: fixed;
