@@ -37,14 +37,14 @@ export default function NowPlaying() {
   } = usePlayer();
 
   const { settings, update } = useEqualizerSettings();
-  const { lines, plainLyrics, hasSynced, currentLineIndex, isLoading } = useLyrics(currentTrack, position);
+  const { lines, plainLyrics, isEstimated, currentLineIndex, isLoading } = useLyrics(currentTrack, position);
   const activeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (hasSynced && activeRef.current) {
+    if (activeRef.current) {
       activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [currentLineIndex, hasSynced]);
+  }, [currentLineIndex]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -67,12 +67,15 @@ export default function NowPlaying() {
         <p className="text-sm text-[#00b4b4]/70 font-mono animate-pulse">Getting the words to the tune…</p>
       )}
 
-      {currentTrack && !isLoading && !hasSynced && !plainLyrics && (
+      {currentTrack && !isLoading && lines.length === 0 && !plainLyrics && (
         <p className="text-sm text-white/48 font-mono">No lyrics found for this track</p>
       )}
 
-      {hasSynced && (
+      {lines.length > 0 && (
         <div className="space-y-2">
+          {isEstimated && (
+            <p className="text-[10px] text-white/30 font-mono mb-3 tracking-wide">≈ estimated timing</p>
+          )}
           {lines.map((line, i) => {
             const active = i === currentLineIndex;
             const past = i < currentLineIndex;
@@ -95,7 +98,7 @@ export default function NowPlaying() {
         </div>
       )}
 
-      {!hasSynced && plainLyrics && (
+      {lines.length === 0 && plainLyrics && (
         <pre className="text-base text-white/72 font-sans leading-relaxed whitespace-pre-wrap">
           {plainLyrics}
         </pre>

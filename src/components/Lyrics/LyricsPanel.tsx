@@ -13,14 +13,14 @@ interface LyricsPanelProps {
 }
 
 export default function LyricsPanel({ isOpen, onClose, track, positionMs }: LyricsPanelProps) {
-  const { lines, plainLyrics, hasSynced, currentLineIndex, isLoading } = useLyrics(track, positionMs);
+  const { lines, plainLyrics, isEstimated, currentLineIndex, isLoading } = useLyrics(track, positionMs);
   const activeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (hasSynced && activeRef.current) {
+    if (activeRef.current) {
       activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [currentLineIndex, hasSynced]);
+  }, [currentLineIndex]);
 
   return (
     <AnimatePresence>
@@ -77,14 +77,17 @@ export default function LyricsPanel({ isOpen, onClose, track, positionMs }: Lyri
               </div>
             )}
 
-            {track && !isLoading && !hasSynced && !plainLyrics && (
+            {track && !isLoading && lines.length === 0 && !plainLyrics && (
               <p className="text-xs text-white/48 font-mono text-center py-8">
                 No lyrics found
               </p>
             )}
 
-            {hasSynced && (
+            {lines.length > 0 && (
               <div className="space-y-1">
+                {isEstimated && (
+                  <p className="text-[10px] text-white/30 font-mono mb-2 tracking-wide">≈ estimated timing</p>
+                )}
                 {lines.map((line, i) => {
                   const isActive = i === currentLineIndex;
                   const isPast = i < currentLineIndex;
@@ -107,7 +110,7 @@ export default function LyricsPanel({ isOpen, onClose, track, positionMs }: Lyri
               </div>
             )}
 
-            {!hasSynced && plainLyrics && (
+            {lines.length === 0 && plainLyrics && (
               <pre className="text-xs text-white/68 font-mono leading-relaxed whitespace-pre-wrap">
                 {plainLyrics}
               </pre>
