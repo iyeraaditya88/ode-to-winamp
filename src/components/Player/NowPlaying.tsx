@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useLyrics } from '@/hooks/useLyrics';
+import { useShareTrack } from '@/hooks/useShareTrack';
 import { useEqualizerSettings, EQ_THEMES, EQ_STYLES } from '@/hooks/useEqualizerSettings';
 import ProgressBar from './ProgressBar';
 import VolumeControl from './VolumeControl';
@@ -38,6 +39,7 @@ export default function NowPlaying() {
 
   const { settings, update } = useEqualizerSettings();
   const { lines, plainLyrics, hasSynced, currentLineIndex, isLoading } = useLyrics(currentTrack, position);
+  const { share, copied } = useShareTrack();
   const activeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -143,6 +145,26 @@ export default function NowPlaying() {
                 className="text-[10px] sm:text-xs font-mono tracking-widest px-2.5 sm:px-3 py-1.5 rounded-sm border border-[#00b4b4]/40 text-[#00b4b4] hover:bg-[#00b4b4]/10 transition-colors whitespace-nowrap"
               >
                 {classic ? 'NEO-CLASSIC' : 'CLASSIC'}
+              </button>
+              <button
+                onClick={() => share(currentTrack)}
+                disabled={!currentTrack}
+                title="Share this song"
+                className="flex items-center gap-2 text-white/62 hover:text-white transition-colors text-xs font-mono tracking-widest disabled:opacity-30"
+              >
+                {copied ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="18" cy="5" r="3" />
+                    <circle cx="6" cy="12" r="3" />
+                    <circle cx="18" cy="19" r="3" />
+                    <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" strokeLinecap="round" />
+                  </svg>
+                )}
+                <span className="hidden sm:inline">{copied ? 'COPIED' : 'SHARE'}</span>
               </button>
               <button
                 onClick={toggleNowPlaying}
