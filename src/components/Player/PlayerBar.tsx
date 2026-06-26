@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { usePlayer } from '@/contexts/PlayerContext';
-import { useEqualizerSettings } from '@/hooks/useEqualizerSettings';
+import { useEqualizerSettings, EQ_STYLES, EQ_THEMES } from '@/hooks/useEqualizerSettings';
 import ProgressBar from './ProgressBar';
 import VolumeControl from './VolumeControl';
 import Equalizer from '@/components/Equalizer/Equalizer';
@@ -18,20 +18,28 @@ export default function PlayerBar() {
     volume,
     shuffle,
     showLyrics,
-    showEqualizer,
     setIsPlaying,
     setPosition,
     setVolume,
     toggleLyrics,
-    toggleEqualizer,
     toggleNowPlaying,
     toggleShuffle,
     playNext,
     playPrev,
   } = usePlayer();
 
-  const { settings } = useEqualizerSettings();
+  const { settings, update } = useEqualizerSettings();
   const art = currentTrack?.album.images.slice(-1)[0]?.url;
+
+  // Clicking the visualizer cycles its waveform type and colour together.
+  const cycleVisualizer = () => {
+    const sIdx = EQ_STYLES.findIndex((s) => s.id === settings.style);
+    const tIdx = EQ_THEMES.findIndex((t) => t.id === settings.theme);
+    update({
+      style: EQ_STYLES[(sIdx + 1) % EQ_STYLES.length].id,
+      theme: EQ_THEMES[(tIdx + 1) % EQ_THEMES.length].id,
+    });
+  };
 
   return (
     <>
@@ -188,26 +196,18 @@ export default function PlayerBar() {
 
             {/* Right: equalizer + toggles + volume — desktop only */}
             <div className="hidden sm:flex items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
-              {showEqualizer && (
-                <div className="h-7 w-24 rounded-sm border border-white/5 bg-black/40 overflow-hidden hidden md:block">
-                  <Equalizer
-                    isPlaying={isPlaying}
-                    theme={settings.theme}
-                    style={settings.style}
-                    barCount={16}
-                    className="h-full w-full"
-                  />
-                </div>
-              )}
-
               <button
-                onClick={toggleEqualizer}
-                title="Equalizer"
-                className={`transition-colors text-xs font-mono tracking-widest px-2 py-1 rounded-sm border ${
-                  showEqualizer ? 'border-[#00b4b4]/50 text-[#00b4b4]' : 'border-white/10 text-white/55 hover:text-white/80'
-                }`}
+                onClick={cycleVisualizer}
+                title="Click to change the visualizer"
+                className="h-9 w-44 rounded-sm border border-white/10 bg-black/40 overflow-hidden hidden md:block hover:border-[#00b4b4]/40 active:scale-[0.97] transition-all"
               >
-                EQ
+                <Equalizer
+                  isPlaying={isPlaying}
+                  theme={settings.theme}
+                  style={settings.style}
+                  barCount={28}
+                  className="h-full w-full pointer-events-none"
+                />
               </button>
 
               <button

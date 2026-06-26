@@ -247,6 +247,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setCurrentIndex(finalIdx);
       indexRef.current = finalIdx;
       playUri(track.uri);
+      // Auto-open the side lyrics panel when a song starts (desktop only — on
+      // mobile the side panel would cover the screen; lyrics live in Now Playing).
+      if (typeof window !== 'undefined' && window.innerWidth >= 640) {
+        setShowLyrics(true);
+      }
     },
     [playUri]
   );
