@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 const SCOPES = [
   'user-library-read',
+  'user-library-modify',
   'streaming',
   'user-read-playback-state',
   'user-modify-playback-state',

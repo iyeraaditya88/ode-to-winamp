@@ -6,6 +6,7 @@ import { useLikedSongs } from '@/hooks/useLikedSongs';
 import { useSearch } from '@/hooks/useSearch';
 import { usePlayer } from '@/contexts/PlayerContext';
 import SearchBar from './SearchBar';
+import RecognizePanel from '@/components/Recognize/RecognizePanel';
 import Logo from '@/components/Logo';
 import type { SpotifyTrack } from '@/types/spotify';
 
@@ -23,6 +24,7 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
   const { query, setQuery, results: searchResults, isLoading: searchLoading } = useSearch();
   const { playTrack, currentTrack, deviceId } = usePlayer();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [recognizeOpen, setRecognizeOpen] = useState(false);
   const [frozenSongs, setFrozenSongs] = useState<SpotifyTrack[] | null>(null);
 
   const songs: SpotifyTrack[] = data?.pages.flatMap((p) => p.items.map((i) => i.track)) ?? [];
@@ -96,6 +98,17 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
               <span className="text-xs text-white/50 font-mono hidden md:inline">{total} liked songs</span>
             )}
             <button
+              onClick={() => setRecognizeOpen(true)}
+              aria-label="Identify a song"
+              title="Identify a song playing"
+              className="flex items-center justify-center px-2.5 py-1.5 rounded-sm border border-white/10 bg-black/30 backdrop-blur-sm text-white/62 hover:text-[#00b4b4] hover:border-[#00b4b4]/40 transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+                <path d="M5 11a7 7 0 0 0 14 0M12 18v3" strokeLinecap="round" />
+              </svg>
+            </button>
+            <button
               onClick={() => setSearchOpen(true)}
               aria-label="Search"
               className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-sm border border-white/10 bg-black/30 backdrop-blur-sm text-white/62 hover:text-white/85 hover:border-white/20 transition-colors text-xs font-mono"
@@ -151,6 +164,16 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
         isLoading={searchLoading}
         onPlay={handlePlaySearch}
         currentTrackId={currentTrack?.id}
+      />
+
+      <RecognizePanel
+        isOpen={recognizeOpen}
+        onClose={() => setRecognizeOpen(false)}
+        onSearch={(q) => {
+          setRecognizeOpen(false);
+          setQuery(q);
+          setSearchOpen(true);
+        }}
       />
     </div>
   );
