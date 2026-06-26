@@ -48,6 +48,77 @@ body {
   100% { height: 100%; }
 }
 
+/* ===== Classic Winamp skin (CSS recreation) ===== */
+/* Beveled metal panels — raised (out) and sunken (in). */
+.wa-out {
+  box-shadow: inset 1px 1px 0 #6e6e68, inset -1px -1px 0 #131311;
+}
+.wa-in {
+  box-shadow: inset 1px 1px 0 #0c0c0a, inset -1px -1px 0 #5c5c56;
+}
+.wa-body {
+  background: linear-gradient(#3b3b3b, #2f2f2f);
+}
+/* Title bar with the fine horizontal grip texture. */
+.wa-titlebar {
+  background: repeating-linear-gradient(#262c34 0 1px, #1d2229 1px 2px);
+  border-bottom: 1px solid #090a0b;
+}
+.wa-lcd {
+  background: #000;
+  box-shadow: inset 1px 1px 2px #000, 0 0 0 1px #000;
+}
+/* Beveled metal button. */
+.wa-btn {
+  background: linear-gradient(#454545, #2a2a2a);
+  box-shadow: inset 1px 1px 0 #6e6e68, inset -1px -1px 0 #131311;
+}
+.wa-btn:active {
+  background: linear-gradient(#242424, #343434);
+  box-shadow: inset 1px 1px 0 #131311, inset -1px -1px 0 #5c5c56;
+  transform: translateY(0.5px);
+}
+.wa-btn-down {
+  background: linear-gradient(#242424, #343434);
+  box-shadow: inset 1px 1px 0 #131311, inset -1px -1px 0 #5c5c56;
+}
+/* Winamp-style grooved horizontal slider. */
+.wa-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 12px;
+  cursor: pointer;
+}
+.wa-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  background: linear-gradient(#0e0e0e, #232323);
+  box-shadow: inset 1px 1px 0 #000, inset -1px -1px 0 #4a4a48, 0 0 0 1px #000;
+}
+.wa-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 11px;
+  margin-top: -3px;
+  background: linear-gradient(#5e5e58, #2c2c2a);
+  box-shadow: inset 1px 1px 0 #8e8e86, inset -1px -1px 0 #1a1a18, 0 0 0 1px #000;
+}
+.wa-slider::-moz-range-track {
+  height: 6px;
+  background: linear-gradient(#0e0e0e, #232323);
+  box-shadow: inset 0 0 0 1px #000;
+}
+.wa-slider::-moz-range-thumb {
+  width: 14px;
+  height: 11px;
+  border: 1px solid #000;
+  border-radius: 0;
+  background: linear-gradient(#5e5e58, #2c2c2a);
+}
+.wa-slider:disabled {
+  opacity: 0.5;
+}
+
 /* Classic Winamp scrolling title */
 .wa-marquee {
   display: inline-block;
