@@ -8,8 +8,6 @@ import gsap from 'gsap';
 import { LensDistortion } from './LensDistortion';
 import type { SpotifyTrack } from '@/types/spotify';
 
-const STRIDE = 3.2; // world-space distance between tile centers
-const TILE = 2.7; // tile size (square)
 const CONTENT_SKEW = 7; // de-correlates rows so neighbours differ
 
 function posMod(n: number, m: number) {
@@ -71,6 +69,13 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
   const getTexture = useTextureCache();
   const groupRef = useRef<THREE.Group>(null);
 
+  // Phones get smaller, denser tiles and a stronger curve.
+  const isMobile = size.width < 640;
+  const STRIDE = isMobile ? 2.15 : 3.2; // world-space distance between tile centers
+  const TILE = isMobile ? 1.8 : 2.7; // tile size (square)
+  const REST_DIST = isMobile ? 0.18 : 0.12;
+  const DRAG_DIST = isMobile ? 0.34 : 0.26;
+
   // Drag / inertia state (kept in refs to avoid re-renders).
   const pan = useRef({ x: 0, y: 0 });
   const vel = useRef({ x: 0, y: 0 });
@@ -120,7 +125,7 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cols, rows, placeholder]);
+  }, [cols, rows, placeholder, TILE]);
 
   // "Now playing" glow halo — a teal additive plane that sits behind the
   // active tile and pulses, giving an on-theme stylish indicator.
@@ -138,7 +143,7 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
     mesh.position.z = -0.08;
     mesh.visible = false;
     return { mesh, mat };
-  }, []);
+  }, [TILE]);
 
   useEffect(() => {
     const group = groupRef.current;
@@ -191,7 +196,7 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
       el.setPointerCapture(e.pointerId);
       // Push the camera back + deepen curvature while interacting.
       gsap.to(camera.position, { z: 11.5, duration: 1, ease: 'power3.out' });
-      gsap.to(distortionRef, { current: 0.26, duration: 1, ease: 'power2.out' });
+      gsap.to(distortionRef, { current: DRAG_DIST, duration: 1, ease: 'power2.out' });
     };
 
     const onMove = (e: PointerEvent) => {
@@ -205,7 +210,12 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
       const dx = (e.clientX - lastPointer.current.x) * pxToWorld;
       const dy = -(e.clientY - lastPointer.current.y) * pxToWorld;
       lastPointer.current = { x: e.clientX, y: e.clientY };
-      moved.current += Math.abs(e.clientX - downPointer.current.x) + Math.abs(e.clientY - downPointer.current.y);
+      // Track the MAX displacement from the press point (not a running sum, which
+      // ballooned on touch and broke tap-to-play).
+      moved.current = Math.max(
+        moved.current,
+        Math.abs(e.clientX - downPointer.current.x) + Math.abs(e.clientY - downPointer.current.y)
+      );
 
       pan.current.x += dx;
       pan.current.y += dy;
@@ -221,10 +231,11 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
         el.releasePointerCapture(e.pointerId);
       } catch {}
       gsap.to(camera.position, { z: 10, duration: 1, ease: 'power3.out' });
-      gsap.to(distortionRef, { current: 0.12, duration: 1, ease: 'power2.out' });
+      gsap.to(distortionRef, { current: REST_DIST, duration: 1, ease: 'power2.out' });
 
-      // A near-stationary press is a click → play that tile's track.
-      if (moved.current < 6) {
+      // A near-stationary press is a click → play that tile's track. (10px of
+      // tolerance so finger jitter on touch still counts as a tap.)
+      if (moved.current < 10) {
         const tile = tileUnderPointer(e.clientX, e.clientY);
         if (tile && tile.contentIndex >= 0) {
           const track = songs[tile.contentIndex % songs.length];
@@ -241,7 +252,12 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
-  }, [gl, camera, pxToWorld, distortionRef, tileUnderPointer, songs, onPlay]);
+  }, [gl, camera, pxToWorld, distortionRef, tileUnderPointer, songs, onPlay, REST_DIST, DRAG_DIST]);
+
+  // Keep the resting curvature in sync with the breakpoint (not while dragging).
+  useEffect(() => {
+    if (!dragging.current) distortionRef.current = REST_DIST;
+  }, [REST_DIST, distortionRef]);
 
   const totalW = cols * STRIDE;
   const totalH = rows * STRIDE;
@@ -369,7 +385,9 @@ interface PhantomGridProps {
 }
 
 export default function PhantomGrid({ songs, onPlay, currentTrackId, burst = true, onReady }: PhantomGridProps) {
-  const distortionRef = useRef(0.12);
+  const distortionRef = useRef(
+    typeof window !== 'undefined' && window.innerWidth < 640 ? 0.18 : 0.12
+  );
   const [hint, setHint] = useState(true);
 
   useEffect(() => {
