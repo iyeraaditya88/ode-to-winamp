@@ -62,6 +62,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const reconnectingRef = useRef(false); // guards the not_ready listener during a manual reconnect
   const recreatingRef = useRef(false); // guards against concurrent player re-creation
   const recreatePlayerRef = useRef<() => Promise<void>>(); // set after initPlayer; called from playUri
+  const lastPlayUriRef = useRef<string | null>(null); // most recent intended track (for post-play verify)
+  const hiddenAtRef = useRef(0); // timestamp the tab was last hidden (for focus recovery)
   const activatedRef = useRef(false);
 
   // Mobile browsers block audio until the SDK's element is activated inside a
@@ -115,6 +117,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     async (uri: string) => {
       advancingRef.current = false;
       lastPosRef.current = 0;
+      lastPlayUriRef.current = uri;
 
       const send = (devId: string) =>
         fetch(`/api/spotify/play?device_id=${devId}`, {
@@ -123,40 +126,56 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           body: JSON.stringify({ uris: [uri] }),
         });
 
-      let id = deviceIdRef.current;
-      if (!id) {
-        await reconnectDevice();
-        id = deviceIdRef.current;
-      }
-
-      if (id) {
-        const res = await send(id);
-        if (res.ok) return;
-      }
-
-      // Stale device after idle — re-register, then retry a few times to beat
-      // the race where Spotify hasn't accepted commands on the fresh device yet.
-      await reconnectDevice();
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const devId = deviceIdRef.current;
-        if (!devId) break;
-        const res = await send(devId);
-        if (res.ok) return;
-        await new Promise((r) => setTimeout(r, 700));
-      }
-
-      // Still dead (long idle broke the SDK socket) — rebuild the player like a
-      // reload would, then retry. This is what finally recovers without an
-      // actual page reload.
-      if (recreatePlayerRef.current) {
-        await recreatePlayerRef.current();
-        for (let attempt = 0; attempt < 2; attempt++) {
-          const devId = deviceIdRef.current;
-          if (!devId) break;
-          const res = await send(devId);
-          if (res.ok) return;
-          await new Promise((r) => setTimeout(r, 800));
+      const attempt = async (): Promise<boolean> => {
+        let id = deviceIdRef.current;
+        if (!id) {
+          await reconnectDevice();
+          id = deviceIdRef.current;
         }
+        if (id && (await send(id)).ok) return true;
+
+        // Stale device after idle — re-register, then retry to beat the race
+        // where Spotify hasn't accepted commands on the fresh device yet.
+        await reconnectDevice();
+        for (let i = 0; i < 3; i++) {
+          const d = deviceIdRef.current;
+          if (!d) break;
+          if ((await send(d)).ok) return true;
+          await new Promise((r) => setTimeout(r, 700));
+        }
+
+        // Still dead (long idle broke the SDK socket) — rebuild the player like
+        // a reload would, then retry.
+        if (recreatePlayerRef.current) {
+          await recreatePlayerRef.current();
+          for (let i = 0; i < 2; i++) {
+            const d = deviceIdRef.current;
+            if (!d) break;
+            if ((await send(d)).ok) return true;
+            await new Promise((r) => setTimeout(r, 800));
+          }
+        }
+        return false;
+      };
+
+      const ok = await attempt();
+
+      // The request can succeed against a "zombie" device (registered server-side
+      // but with dead local audio after a very long idle) — UI shows playing but
+      // there's no sound. Verify a moment later; if nothing actually started,
+      // rebuild the player and replay once.
+      if (ok) {
+        setTimeout(async () => {
+          if (lastPlayUriRef.current !== uri) return; // user moved on
+          const st = await playerRef.current?.getCurrentState();
+          const failed = !st || (st.paused && st.position < 500);
+          if (failed && recreatePlayerRef.current) {
+            await recreatePlayerRef.current();
+            if (lastPlayUriRef.current !== uri) return;
+            const d = deviceIdRef.current;
+            if (d) send(d).catch(() => {});
+          }
+        }, 1500);
       }
     },
     [reconnectDevice]
@@ -390,12 +409,26 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // device the audio may live elsewhere. Reflect the SDK's actual state.
   useEffect(() => {
     const resync = async () => {
-      if (typeof document === 'undefined' || document.visibilityState !== 'visible') return;
+      if (typeof document === 'undefined') return;
+      if (document.visibilityState === 'hidden') {
+        hiddenAtRef.current = Date.now();
+        return;
+      }
       const p = playerRef.current;
       if (!p) return;
-      const state = await p.getCurrentState();
+      const hiddenMs = hiddenAtRef.current ? Date.now() - hiddenAtRef.current : 0;
+      hiddenAtRef.current = 0;
+
+      let state = await p.getCurrentState();
+      // Proactively rebuild the player on focus when the device looks dead (no
+      // state) or we were away a long time (e.g. overnight) — so the next play
+      // works without a manual reload.
+      if ((!state || hiddenMs > 5 * 60 * 1000) && recreatePlayerRef.current) {
+        await recreatePlayerRef.current();
+        state = (await playerRef.current?.getCurrentState()) ?? null;
+      }
+
       if (!state) {
-        // Not the active output here — don't pretend we're playing.
         setIsPlaying(false);
       } else {
         setIsPlaying(!state.paused);
