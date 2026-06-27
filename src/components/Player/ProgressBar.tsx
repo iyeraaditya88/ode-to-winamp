@@ -19,10 +19,16 @@ export default function ProgressBar({ position, duration, onSeek }: ProgressBarP
 
   const progress = duration > 0 ? (seeking ? seekValue : position / duration) * 100 : 0;
 
+  // Commit a seek from the raw 0–100 slider value (works for mouse + touch).
+  const commit = (raw: number) => {
+    setSeeking(false);
+    onSeek(Math.round((raw / 100) * duration));
+  };
+
   return (
     <div className="flex items-center gap-3 w-full">
       <span className="text-[10px] text-white/55 font-mono w-8 text-right shrink-0">
-        {formatTime(position)}
+        {formatTime(seeking ? seekValue * duration : position)}
       </span>
       <div className="relative flex-1 h-1 group">
         <div className="absolute inset-y-0 w-full rounded-full bg-white/10" />
@@ -36,17 +42,19 @@ export default function ProgressBar({ position, duration, onSeek }: ProgressBarP
           max={100}
           step={0.01}
           value={seeking ? seekValue * 100 : progress}
-          onMouseDown={() => {
+          // Pointer events cover both mouse and touch; touch-action:none keeps the
+          // horizontal drag from being hijacked into a scroll on mobile.
+          onPointerDown={() => {
             setSeeking(true);
             setSeekValue(progress / 100);
           }}
           onChange={(e) => setSeekValue(Number(e.target.value) / 100)}
-          onMouseUp={(e) => {
-            setSeeking(false);
-            const val = Number((e.target as HTMLInputElement).value) / 100;
-            onSeek(Math.round(val * duration));
-          }}
-          className="absolute inset-0 w-full opacity-0 cursor-pointer h-full"
+          onPointerUp={(e) => commit(Number((e.target as HTMLInputElement).value))}
+          onPointerCancel={(e) => commit(Number((e.target as HTMLInputElement).value))}
+          style={{ touchAction: 'none' }}
+          // Extend the (invisible) hit area well beyond the 4px bar so it's
+          // easy to grab on touch.
+          className="absolute -inset-y-3 inset-x-0 opacity-0 cursor-pointer"
         />
       </div>
       <span className="text-[10px] text-white/55 font-mono w-8 shrink-0">
