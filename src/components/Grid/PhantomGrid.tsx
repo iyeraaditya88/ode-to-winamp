@@ -9,6 +9,9 @@ import { LensDistortion } from './LensDistortion';
 import type { SpotifyTrack } from '@/types/spotify';
 
 const CONTENT_SKEW = 7; // de-correlates rows so neighbours differ
+const FOV = 45; // matches the Canvas camera fov
+const BASE_Z = 10; // matches the Canvas camera z (default zoom level)
+const DRAG_PUSH = 1.2; // camera recedes this much while dragging
 
 function posMod(n: number, m: number) {
   return ((n % m) + m) % m;
@@ -75,6 +78,8 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
   const TILE = isMobile ? 1.8 : 2.7; // tile size (square)
   const REST_DIST = isMobile ? 0.18 : 0.12;
   const DRAG_DIST = isMobile ? 0.34 : 0.26;
+  const ZOOM_MIN = isMobile ? 5.5 : 6.5; // most zoomed-in (camera closest)
+  const ZOOM_MAX = isMobile ? 13 : 15; // most zoomed-out (camera farthest)
 
   // Drag / inertia state (kept in refs to avoid re-renders).
   const pan = useRef({ x: 0, y: 0 });
@@ -87,6 +92,8 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
   const ambient = useRef({ x: 0, y: 0 });
   const hoveredTile = useRef<number>(-1);
   const entranceStart = useRef<number>(-1); // clock time the burst reveal began
+  const zoomRef = useRef(BASE_Z); // target camera z (scroll/pinch zoom level)
+  const pinchingRef = useRef(false); // a two-finger pinch is in progress
 
   // Signal readiness after a few warm-up frames (shader compiled, first
   // textures uploaded) so the intro can burst with no black gap.
@@ -94,9 +101,12 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
 
-  // Build the recycled tile pool sized to cover the viewport + margin.
-  const cols = Math.ceil(viewport.width / STRIDE) + 4;
-  const rows = Math.ceil(viewport.height / STRIDE) + 4;
+  // Size the recycled tile pool for the most zoomed-OUT view (+ margin) so
+  // zooming out never reveals gaps and we never rebuild tiles on zoom.
+  const maxViewH = 2 * ZOOM_MAX * Math.tan(((FOV * Math.PI) / 180) / 2);
+  const maxViewW = maxViewH * (size.width / Math.max(1, size.height));
+  const cols = Math.ceil(maxViewW / STRIDE) + 4;
+  const rows = Math.ceil(maxViewH / STRIDE) + 4;
 
   const placeholder = useMemo(() => {
     const c = document.createElement('canvas');
@@ -188,6 +198,7 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
     el.style.touchAction = 'none';
 
     const onDown = (e: PointerEvent) => {
+      if (pinchingRef.current) return;
       dragging.current = true;
       hoveredTile.current = -1; // no hover scale-up while dragging
       moved.current = 0;
@@ -195,12 +206,12 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
       downPointer.current = { x: e.clientX, y: e.clientY };
       vel.current = { x: 0, y: 0 };
       el.setPointerCapture(e.pointerId);
-      // Push the camera back + deepen curvature while interacting.
-      gsap.to(camera.position, { z: 11.5, duration: 1, ease: 'power3.out' });
+      // Deepen curvature while interacting (camera recede handled in useFrame).
       gsap.to(distortionRef, { current: DRAG_DIST, duration: 1, ease: 'power2.out' });
     };
 
     const onMove = (e: PointerEvent) => {
+      if (pinchingRef.current) return;
       const rect = el.getBoundingClientRect();
       pointerNorm.current = {
         x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
@@ -214,8 +225,11 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
         hoveredTile.current = tile ? (tile.mesh.userData.poolIndex as number) : -1;
         return;
       }
-      const dx = (e.clientX - lastPointer.current.x) * pxToWorld;
-      const dy = -(e.clientY - lastPointer.current.y) * pxToWorld;
+      // Scale pixel→world by the current zoom so panning feels the same at any
+      // zoom (a pixel covers more world when zoomed out).
+      const zScale = camera.position.z / BASE_Z;
+      const dx = (e.clientX - lastPointer.current.x) * pxToWorld * zScale;
+      const dy = -(e.clientY - lastPointer.current.y) * pxToWorld * zScale;
       lastPointer.current = { x: e.clientX, y: e.clientY };
       // Track the MAX displacement from the press point (not a running sum, which
       // ballooned on touch and broke tap-to-play).
@@ -237,7 +251,6 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
       try {
         el.releasePointerCapture(e.pointerId);
       } catch {}
-      gsap.to(camera.position, { z: 10, duration: 1, ease: 'power3.out' });
       gsap.to(distortionRef, { current: REST_DIST, duration: 1, ease: 'power2.out' });
 
       // A near-stationary press is a click → play that tile's track. (10px of
@@ -251,15 +264,61 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
       }
     };
 
+    const clampZoom = (z: number) => Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+
+    // Desktop: scroll to zoom (up = in, map convention).
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      zoomRef.current = clampZoom(zoomRef.current + e.deltaY * 0.01);
+    };
+
+    // Mobile: two-finger pinch to zoom.
+    const fingerDist = (t: TouchList) =>
+      Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    let pinchPrev = 0;
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        pinchingRef.current = true;
+        dragging.current = false; // abandon any single-finger drag
+        pinchPrev = fingerDist(e.touches);
+      }
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!pinchingRef.current || e.touches.length !== 2) return;
+      e.preventDefault();
+      const d = fingerDist(e.touches);
+      if (pinchPrev > 0 && d > 0) {
+        // Fingers apart (d grows) → camera closer (z down) → zoom in.
+        zoomRef.current = clampZoom(zoomRef.current * (pinchPrev / d));
+      }
+      pinchPrev = d;
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) {
+        pinchingRef.current = false;
+        pinchPrev = 0;
+      }
+    };
+
     el.addEventListener('pointerdown', onDown);
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    el.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('touchstart', onTouchStart, { passive: false });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd);
+    el.addEventListener('touchcancel', onTouchEnd);
     return () => {
       el.removeEventListener('pointerdown', onDown);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
     };
-  }, [gl, camera, pxToWorld, distortionRef, tileUnderPointer, songs, onPlay, REST_DIST, DRAG_DIST]);
+  }, [gl, camera, pxToWorld, distortionRef, tileUnderPointer, songs, onPlay, REST_DIST, DRAG_DIST, ZOOM_MIN, ZOOM_MAX]);
 
   // Keep the resting curvature in sync with the breakpoint (not while dragging).
   useEffect(() => {
@@ -278,6 +337,11 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
       readyFrames.current += 1;
       if (readyFrames.current === 4) onReadyRef.current?.();
     }
+
+    // Zoom (scroll/pinch) + drag-recede, eased. Camera dolly along z; the
+    // lens-distortion sphere is screen-space so the look holds at any zoom.
+    const targetZ = zoomRef.current + (dragging.current ? DRAG_PUSH : 0);
+    camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetZ, 0.12);
 
     // Entrance: once the logo bursts, explode tiles outward from the center.
     if (burst && entranceStart.current < 0) entranceStart.current = time;
@@ -415,7 +479,7 @@ export default function PhantomGrid({ songs, onPlay, currentTrackId, burst = tru
 
       {hint && (
         <div className="pointer-events-none absolute bottom-28 left-1/2 -translate-x-1/2 text-[10px] tracking-[0.3em] text-white/55 font-mono uppercase animate-pulse">
-          Drag to explore · Click to play
+          Drag to explore · Scroll / pinch to zoom · Tap to play
         </div>
       )}
     </div>
