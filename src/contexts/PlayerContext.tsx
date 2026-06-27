@@ -329,6 +329,32 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [isPlaying]);
 
+  // Resync with reality when the app returns to the foreground. iOS suspends the
+  // page and Spotify drops the device, leaving a stale "playing" UI; on a second
+  // device the audio may live elsewhere. Reflect the SDK's actual state.
+  useEffect(() => {
+    const resync = async () => {
+      if (typeof document === 'undefined' || document.visibilityState !== 'visible') return;
+      const p = playerRef.current;
+      if (!p) return;
+      const state = await p.getCurrentState();
+      if (!state) {
+        // Not the active output here — don't pretend we're playing.
+        setIsPlaying(false);
+      } else {
+        setIsPlaying(!state.paused);
+        setPosition(state.position);
+        setDuration(state.duration);
+      }
+    };
+    document.addEventListener('visibilitychange', resync);
+    window.addEventListener('pageshow', resync);
+    return () => {
+      document.removeEventListener('visibilitychange', resync);
+      window.removeEventListener('pageshow', resync);
+    };
+  }, []);
+
   const playTrack = useCallback(
     (track: SpotifyTrack, context?: SpotifyTrack[]) => {
       // Must run synchronously inside the tap gesture to unlock mobile audio.
@@ -375,7 +401,24 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setIsPlaying: async (v) => {
       if (v) {
         ensureActivated();
-        await playerRef.current?.resume();
+        const state = await playerRef.current?.getCurrentState();
+        if (state) {
+          await playerRef.current?.resume();
+        } else {
+          // This device isn't the active audio output (audio is on another
+          // device, or the device was dropped after backgrounding). Re-claim
+          // playback onto THIS device so sound actually comes through here.
+          const resumeHere = async () => {
+            const id = deviceIdRef.current;
+            if (!id) return null;
+            return fetch(`/api/spotify/play?device_id=${id}`, { method: 'PUT' }).catch(() => null);
+          };
+          let res = await resumeHere();
+          if (!res || !res.ok) {
+            await reconnectDevice();
+            res = await resumeHere();
+          }
+        }
       } else {
         await playerRef.current?.pause();
       }

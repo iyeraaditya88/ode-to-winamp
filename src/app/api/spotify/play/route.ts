@@ -7,7 +7,15 @@ export async function PUT(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const deviceId = searchParams.get('device_id');
-  const body = await request.json();
+
+  // No body → resume the current playback ON this device (transfers audio here
+  // if it was active elsewhere). A body with `uris` → start a specific track.
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    body = undefined;
+  }
 
   const url = deviceId
     ? `https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`
@@ -19,7 +27,7 @@ export async function PUT(request: NextRequest) {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(body),
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
 
   if (!res.ok && res.status !== 204) {
