@@ -92,7 +92,8 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
   const ambient = useRef({ x: 0, y: 0 });
   const hoveredTile = useRef<number>(-1);
   const entranceStart = useRef<number>(-1); // clock time the burst reveal began
-  const zoomRef = useRef(BASE_Z); // target camera z (scroll/pinch zoom level)
+  // Start zoomed out by default (preferred view); user can scroll/pinch to zoom in.
+  const zoomRef = useRef(isMobile ? 11.5 : 13.5); // target camera z (scroll/pinch zoom level)
   const pinchingRef = useRef(false); // a two-finger pinch is in progress
 
   // Signal readiness after a few warm-up frames (shader compiled, first
@@ -459,7 +460,12 @@ export default function PhantomGrid({ songs, onPlay, currentTrackId, burst = tru
   return (
     <div className="fixed inset-0 z-0 cursor-grab active:cursor-grabbing">
       <Canvas
-        camera={{ position: [0, 0, 10], fov: 45, near: 0.1, far: 100 }}
+        camera={{
+          position: [0, 0, typeof window !== 'undefined' && window.innerWidth < 640 ? 11.5 : 13.5],
+          fov: 45,
+          near: 0.1,
+          far: 100,
+        }}
         gl={{ antialias: true, alpha: true }}
         dpr={[1, 2]}
       >
