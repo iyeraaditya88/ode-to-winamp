@@ -152,7 +152,7 @@ export default function NowPlaying({ progress, onCollapse }: NowPlayingProps) {
             paddingTop: 'env(safe-area-inset-top)',
             paddingBottom: 'env(safe-area-inset-bottom)',
           }}
-          className="fixed inset-0 z-50 flex flex-col bg-[#070707]"
+          className="fixed inset-0 z-50 flex flex-col bg-[#070707] select-none"
         >
           {/* Blurred album-art backdrop */}
           {art && (
