@@ -214,7 +214,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     });
 
     player.addListener('player_state_changed', (state: Spotify.PlaybackState | null) => {
-      if (!state) return;
+      if (!state) {
+        // A null state means another device took over playback — this device is
+        // no longer the active output, so stop showing "playing".
+        setIsPlaying(false);
+        return;
+      }
       const sdkTrack = state.track_window.current_track;
       setIsPlaying(!state.paused);
       setPosition(state.position);
