@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import type { SpotifyTrack } from '@/types/spotify';
 
@@ -63,7 +63,7 @@ export default function SearchBar({
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -115,7 +115,7 @@ export default function SearchBar({
                 const isActive = track.id === currentTrackId;
                 const art = track.album.images[2]?.url ?? track.album.images[0]?.url;
                 return (
-                  <motion.button
+                  <m.button
                     key={track.id}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -157,7 +157,7 @@ export default function SearchBar({
                         <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </span>
-                  </motion.button>
+                  </m.button>
                 );
               })}
             </div>
@@ -171,7 +171,7 @@ export default function SearchBar({
               </a>
             )}
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

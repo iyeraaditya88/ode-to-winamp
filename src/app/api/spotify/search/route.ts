@@ -24,5 +24,8 @@ export async function GET(request: NextRequest) {
   }
 
   const data = await res.json();
-  return NextResponse.json(data);
+  const response = NextResponse.json(data);
+  // Cache identical repeat searches briefly (per-user; never shared).
+  response.headers.set('Cache-Control', 'private, max-age=60');
+  return response;
 }

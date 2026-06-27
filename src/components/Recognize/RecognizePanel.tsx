@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import Image from 'next/image';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useRecognize } from '@/hooks/useRecognize';
 import { useLikeTrack } from '@/hooks/useLikeTrack';
@@ -40,7 +40,7 @@ export default function RecognizePanel({ isOpen, onClose, onSearch }: RecognizeP
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -90,7 +90,7 @@ export default function RecognizePanel({ isOpen, onClose, onSearch }: RecognizeP
               <div className="relative h-40 w-40 flex items-center justify-center">
                 {/* Expanding sonar rings */}
                 {[0, 0.6, 1.2].map((delay) => (
-                  <motion.span
+                  <m.span
                     key={delay}
                     className="absolute rounded-full border border-[#00b4b4]/50"
                     initial={{ width: 80, height: 80, opacity: 0.6 }}
@@ -99,7 +99,7 @@ export default function RecognizePanel({ isOpen, onClose, onSearch }: RecognizeP
                   />
                 ))}
                 {/* Pulsing mic core */}
-                <motion.div
+                <m.div
                   className="relative h-20 w-20 rounded-full bg-[#00b4b4]/25 border border-[#00b4b4]/60 flex items-center justify-center"
                   animate={{ scale: [1, 1.12, 1] }}
                   transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
@@ -109,12 +109,12 @@ export default function RecognizePanel({ isOpen, onClose, onSearch }: RecognizeP
                     <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
                     <path d="M5 11a7 7 0 0 0 14 0M12 18v3" strokeLinecap="round" />
                   </svg>
-                </motion.div>
+                </m.div>
               </div>
               {/* Animated equalizer bars */}
               <div className="flex items-end gap-1 h-5">
                 {[0, 1, 2, 3, 4].map((i) => (
-                  <motion.span
+                  <m.span
                     key={i}
                     className="w-1 rounded-full bg-[#00b4b4]"
                     animate={{ height: [6, 20, 6] }}
@@ -199,7 +199,7 @@ export default function RecognizePanel({ isOpen, onClose, onSearch }: RecognizeP
               </button>
             </div>
           )}
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

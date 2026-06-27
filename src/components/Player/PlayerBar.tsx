@@ -2,7 +2,7 @@
 
 import { useRef, useState, useCallback } from 'react';
 import Image from 'next/image';
-import { motion, useMotionValue, animate } from 'framer-motion';
+import { m, useMotionValue, animate } from 'framer-motion';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useEqualizerSettings, EQ_STYLES, EQ_THEMES } from '@/hooks/useEqualizerSettings';
 import { useShareTrack } from '@/hooks/useShareTrack';
@@ -69,7 +69,7 @@ export default function PlayerBar() {
       <LyricsPanel isOpen={showLyrics} onClose={toggleLyrics} track={currentTrack} positionMs={position} />
       {sheetMounted && <NowPlaying progress={sheetProgress} onCollapse={closeSheet} />}
 
-      <motion.div
+      <m.div
         onClick={() => {
           if (justSwiped.current) {
             justSwiped.current = false;
@@ -300,7 +300,7 @@ export default function PlayerBar() {
             </div>
           </div>
         </div>
-      </motion.div>
+      </m.div>
     </>
   );
 }

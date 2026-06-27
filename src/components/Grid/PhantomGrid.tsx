@@ -189,6 +189,7 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
 
     const onDown = (e: PointerEvent) => {
       dragging.current = true;
+      hoveredTile.current = -1; // no hover scale-up while dragging
       moved.current = 0;
       lastPointer.current = { x: e.clientX, y: e.clientY };
       downPointer.current = { x: e.clientX, y: e.clientY };
@@ -206,7 +207,13 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
         y: -((e.clientY - rect.top) / rect.height) * 2 + 1,
       };
 
-      if (!dragging.current) return;
+      if (!dragging.current) {
+        // Hover detection here (on actual pointer movement) instead of raycasting
+        // every frame — far cheaper when the pointer is still.
+        const tile = tileUnderPointer(e.clientX, e.clientY);
+        hoveredTile.current = tile ? (tile.mesh.userData.poolIndex as number) : -1;
+        return;
+      }
       const dx = (e.clientX - lastPointer.current.x) * pxToWorld;
       const dy = -(e.clientY - lastPointer.current.y) * pxToWorld;
       lastPointer.current = { x: e.clientX, y: e.clientY };
@@ -292,18 +299,7 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
     const ox = pan.current.x + ambient.current.x;
     const oy = pan.current.y + ambient.current.y;
 
-    // Hover detection (only when not dragging) for subtle scale-up.
-    let hoverContent = -1;
-    if (!dragging.current) {
-      const tile = tileUnderPointer(
-        ((pointerNorm.current.x + 1) / 2) * size.width + gl.domElement.getBoundingClientRect().left,
-        ((1 - pointerNorm.current.y) / 2) * size.height + gl.domElement.getBoundingClientRect().top
-      );
-      hoveredTile.current = tile ? tile.mesh.userData.poolIndex : -1;
-    } else {
-      hoveredTile.current = -1;
-    }
-
+    // Hover is computed in the pointermove handler (not every frame).
     for (const t of tiles) {
       // Wrap each slot into the centered viewport range.
       let x = posMod(t.col * STRIDE + ox, totalW);
@@ -334,10 +330,11 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
         const track = songs[content];
         const url =
           track?.album.images[1]?.url ?? track?.album.images[0]?.url ?? track?.album.images[2]?.url;
-        const tex = getTexture(url);
-        t.material.map = tex ?? placeholder;
-        t.material.needsUpdate = true;
-        hoverContent = content;
+        const tex = getTexture(url) ?? placeholder;
+        if (tex !== t.material.map) {
+          t.material.map = tex;
+          t.material.needsUpdate = true;
+        }
       }
 
       // Scale: hovered tile grows, current-playing tile stays slightly larger.
@@ -369,8 +366,6 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
       glow.mat.opacity = THREE.MathUtils.lerp(glow.mat.opacity, 0, 0.15);
       if (glow.mat.opacity < 0.01) glow.mesh.visible = false;
     }
-
-    void hoverContent;
   });
 
   return <group ref={groupRef} />;

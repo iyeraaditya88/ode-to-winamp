@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import type { SpotifyTrack } from '@/types/spotify';
 
 function useDebounce<T>(value: T, delay: number): T {
@@ -23,6 +23,7 @@ export function useSearch() {
       fetch(`/api/spotify/search?q=${encodeURIComponent(debouncedQuery)}`).then((r) => r.json()),
     enabled: debouncedQuery.trim().length > 1,
     staleTime: 30_000,
+    placeholderData: keepPreviousData,
   });
 
   return {

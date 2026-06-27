@@ -17,5 +17,9 @@ export function useLikedSongs() {
     initialPageParam: 0,
     getNextPageParam: (lastPage: LikedSongsPage) =>
       lastPage.next ? lastPage.offset + lastPage.limit : undefined,
+    // The grid freezes the pool anyway — don't refetch the whole library in the
+    // background on focus/remount.
+    staleTime: Infinity,
+    gcTime: Infinity,
   });
 }

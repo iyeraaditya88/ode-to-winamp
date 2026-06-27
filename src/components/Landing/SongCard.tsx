@@ -1,6 +1,6 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import Image from 'next/image';
 import type { SpotifyTrack } from '@/types/spotify';
 
@@ -32,7 +32,7 @@ export default function SongCard({ track, isPlaying, onPlay, index }: SongCardPr
   const artistNames = track.artists.map((a) => a.name).join(', ');
 
   return (
-    <motion.div
+    <m.div
       variants={itemVariant}
       whileHover={{ scale: 1.02 }}
       className="group relative cursor-pointer overflow-hidden rounded-sm bg-[#111111] border border-white/5"
@@ -101,6 +101,6 @@ export default function SongCard({ track, isPlaying, onPlay, index }: SongCardPr
           )}
         </div>
       </div>
-    </motion.div>
+    </m.div>
   );
 }

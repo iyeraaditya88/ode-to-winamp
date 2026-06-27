@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { useLyrics } from '@/hooks/useLyrics';
 import { useRomanize } from '@/hooks/useRomanize';
 import { hasNonLatin } from '@/lib/romanize';
@@ -32,7 +32,7 @@ export default function LyricsPanel({ isOpen, onClose, track, positionMs }: Lyri
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div
+        <m.div
           initial={{ x: '100%', opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: '100%', opacity: 0 }}
@@ -142,7 +142,7 @@ export default function LyricsPanel({ isOpen, onClose, track, positionMs }: Lyri
               </div>
             )}
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

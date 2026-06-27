@@ -29,6 +29,7 @@ export default function Equalizer({
 }: EqualizerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>();
+  const drawRef = useRef<(ts: number) => void>();
   const heights = useRef<number[]>([]);
   const peaks = useRef<number[]>([]);
   const peakAt = useRef<number[]>([]);
@@ -159,18 +160,33 @@ export default function Equalizer({
       }
       ctx.shadowBlur = 0;
 
-      animRef.current = requestAnimationFrame(draw);
+      // Keep animating only while playing; when paused, this frame is the final
+      // frozen render and we stop scheduling (no idle CPU/battery burn).
+      if (isPlayingRef.current) {
+        animRef.current = requestAnimationFrame(draw);
+      } else {
+        animRef.current = undefined;
+      }
     };
 
+    drawRef.current = draw;
     animRef.current = requestAnimationFrame(draw);
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current);
+      animRef.current = undefined;
       ro.disconnect();
     };
     // isPlaying intentionally excluded — read via ref so pausing freezes the
     // bars without tearing down/clearing the canvas.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [style, glow, barCount, freqFactors, stops]);
+
+  // Restart the loop when playback resumes (the loop self-stops when paused).
+  useEffect(() => {
+    if (isPlaying && animRef.current === undefined && drawRef.current) {
+      animRef.current = requestAnimationFrame(drawRef.current);
+    }
+  }, [isPlaying]);
 
   return <canvas ref={canvasRef} className={className} />;
 }

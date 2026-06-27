@@ -271,6 +271,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    let cancelled = false;
 
     // Define the global callback BEFORE the SDK script loads, otherwise the
     // SDK throws "onSpotifyWebPlaybackSDKReady is not defined" on load.
@@ -278,17 +279,32 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       initPlayer();
     };
 
-    if (window.Spotify) {
-      initPlayer();
-    } else if (!document.getElementById('spotify-player-sdk')) {
+    // Defer the ~30KB SDK download until we know the user is signed in, so the
+    // login/intro launch path isn't competing for bandwidth.
+    const loadSdkIfAuthed = async () => {
+      if (window.Spotify) {
+        initPlayer();
+        return;
+      }
+      try {
+        const res = await fetch('/api/auth/token');
+        if (!res.ok) return; // not authenticated — skip the SDK entirely
+        const { token } = await res.json().catch(() => ({ token: null }));
+        if (!token) return;
+      } catch {
+        return;
+      }
+      if (cancelled || window.Spotify || document.getElementById('spotify-player-sdk')) return;
       const script = document.createElement('script');
       script.id = 'spotify-player-sdk';
       script.src = 'https://sdk.scdn.co/spotify-player.js';
       script.async = true;
       document.body.appendChild(script);
-    }
+    };
+    loadSdkIfAuthed();
 
     return () => {
+      cancelled = true;
       playerRef.current?.disconnect();
     };
   }, [initPlayer]);

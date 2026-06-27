@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { motion, useTransform, animate, type MotionValue } from 'framer-motion';
+import { m, useTransform, animate, type MotionValue } from 'framer-motion';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { useLyrics } from '@/hooks/useLyrics';
 import { useShareTrack } from '@/hooks/useShareTrack';
@@ -145,7 +145,7 @@ export default function NowPlaying({ progress, onCollapse }: NowPlayingProps) {
   );
 
   return (
-        <motion.div
+        <m.div
           style={{
             y: sheetY,
             opacity: sheetOpacity,
@@ -164,7 +164,7 @@ export default function NowPlaying({ progress, onCollapse }: NowPlayingProps) {
 
           {/* Header doubles as the drag handle — pull down to collapse; the
               sheet follows the drag via the shared progress value. */}
-          <motion.div
+          <m.div
             onPanStart={() => {
               headerStart.current = progress.get();
             }}
@@ -224,7 +224,7 @@ export default function NowPlaying({ progress, onCollapse }: NowPlayingProps) {
               </button>
             </div>
             </div>
-          </motion.div>
+          </m.div>
 
           {classic ? (
             <div className="flex-1 min-h-0 flex flex-col lg:grid lg:grid-cols-2 gap-6 lg:gap-8 px-4 sm:px-6 lg:px-12 pb-6 overflow-y-auto lg:overflow-hidden">
@@ -407,6 +407,6 @@ export default function NowPlaying({ progress, onCollapse }: NowPlayingProps) {
             </div>
           </div>
           )}
-        </motion.div>
+        </m.div>
   );
 }
