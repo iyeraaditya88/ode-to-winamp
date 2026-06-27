@@ -23,7 +23,7 @@ export default function AddToPlaylistSheet({ track, onClose }: Props) {
   const [creating, setCreating] = useState(false);
 
   const playlists = (data?.pages.flatMap((p) => p.items) ?? []).filter(
-    (p) => p.owner.id === me?.id || p.collaborative
+    (p) => p.owner?.id === me?.id || p.collaborative
   );
 
   const addTo = async (playlistId: string) => {

@@ -25,7 +25,8 @@ function PlaylistRow({ p, onClick }: { p: SpotifyPlaylist; onClick: () => void }
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm text-white/85">{p.name}</p>
         <p className="truncate text-xs text-white/45">
-          {p.owner.display_name} · {p.tracks.total} tracks
+          {p.owner?.display_name ?? 'Spotify'}
+          {p.tracks ? ` · ${p.tracks.total} tracks` : ''}
         </p>
       </div>
     </button>
@@ -38,7 +39,8 @@ export default function PlaylistsPanel({ isOpen, onClose, onOpenInSphere }: Prop
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = usePlaylists(isOpen);
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError, error } = usePlaylists(isOpen);
+  const readNeedsReconnect = isError && (error as Error)?.message === 'reconnect';
   const search = useSearchPlaylists();
   const { create, pending, needsReconnect } = usePlaylistMutations();
 
@@ -111,9 +113,9 @@ export default function PlaylistsPanel({ isOpen, onClose, onOpenInSphere }: Prop
                 </button>
               </div>
 
-              {needsReconnect && (
-                <a href="/api/auth/login" className="mx-4 mt-3 text-center text-xs text-[#00b4b4] hover:underline font-mono">
-                  Reconnect Spotify to create/edit playlists →
+              {(needsReconnect || readNeedsReconnect) && (
+                <a href="/api/auth/login" className="block mx-4 mt-3 text-center text-xs text-[#00b4b4] hover:underline font-mono">
+                  Reconnect Spotify to enable playlists →
                 </a>
               )}
 

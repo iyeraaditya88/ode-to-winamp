@@ -63,7 +63,9 @@ export interface SpotifyPlaylist {
   owner: { id: string; display_name: string };
   public: boolean | null;
   collaborative: boolean;
-  tracks: { total: number };
+  // Spotify's /search?type=playlist returns tracks=null (only /me/playlists and
+  // the full playlist object carry { total }). Keep it nullable.
+  tracks: { total: number } | null;
 }
 
 export interface PlaylistsPage {

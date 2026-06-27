@@ -26,7 +26,7 @@ export default function PlaylistDetail({ playlist, onBack, onOpenInSphere }: Pro
   const { playTrack, currentTrack } = usePlayer();
   const [removed, setRemoved] = useState<Set<string>>(new Set());
 
-  const owned = playlist.owner.id === me?.id || playlist.collaborative;
+  const owned = playlist.owner?.id === me?.id || playlist.collaborative;
 
   // Pull a generous chunk so "open in sphere" and the queue have the tracks.
   useEffect(() => {
@@ -58,7 +58,7 @@ export default function PlaylistDetail({ playlist, onBack, onOpenInSphere }: Pro
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-semibold text-white truncate">{playlist.name}</h2>
           <p className="text-xs text-white/50 truncate">
-            {playlist.owner.display_name} · {playlist.tracks.total} tracks
+            {playlist.owner?.display_name ?? 'Spotify'} · {playlist.tracks?.total ?? tracks.length} tracks
           </p>
           <button
             onClick={() => onOpenInSphere(playlist, tracks)}
