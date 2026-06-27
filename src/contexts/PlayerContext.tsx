@@ -60,6 +60,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const lastPosRef = useRef(0);
   const readySeqRef = useRef(0); // bumps on every SDK 'ready' — lets reconnect waits know a fresh device registered
   const reconnectingRef = useRef(false); // guards the not_ready listener during a manual reconnect
+  const recreatingRef = useRef(false); // guards against concurrent player re-creation
+  const recreatePlayerRef = useRef<() => Promise<void>>(); // set after initPlayer; called from playUri
   const activatedRef = useRef(false);
 
   // Mobile browsers block audio until the SDK's element is activated inside a
@@ -126,10 +128,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         await reconnectDevice();
         id = deviceIdRef.current;
       }
-      if (!id) return;
 
-      let res = await send(id);
-      if (res.ok) return;
+      if (id) {
+        const res = await send(id);
+        if (res.ok) return;
+      }
 
       // Stale device after idle — re-register, then retry a few times to beat
       // the race where Spotify hasn't accepted commands on the fresh device yet.
@@ -137,9 +140,23 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       for (let attempt = 0; attempt < 3; attempt++) {
         const devId = deviceIdRef.current;
         if (!devId) break;
-        res = await send(devId);
+        const res = await send(devId);
         if (res.ok) return;
         await new Promise((r) => setTimeout(r, 700));
+      }
+
+      // Still dead (long idle broke the SDK socket) — rebuild the player like a
+      // reload would, then retry. This is what finally recovers without an
+      // actual page reload.
+      if (recreatePlayerRef.current) {
+        await recreatePlayerRef.current();
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const devId = deviceIdRef.current;
+          if (!devId) break;
+          const res = await send(devId);
+          if (res.ok) return;
+          await new Promise((r) => setTimeout(r, 800));
+        }
       }
     },
     [reconnectDevice]
@@ -207,9 +224,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     player.addListener('not_ready', () => {
       // Spotify dropped the device (idle timeout / network). Re-register it so
-      // the next play doesn't hit a dead device — unless a manual reconnect is
-      // already in flight (avoid fighting it).
-      if (reconnectingRef.current) return;
+      // the next play doesn't hit a dead device — unless a manual reconnect or a
+      // full re-create is already in flight (avoid fighting / zombie players).
+      if (reconnectingRef.current || recreatingRef.current) return;
       player.connect();
     });
 
@@ -273,6 +290,40 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     await player.connect();
     playerRef.current = player;
   }, []);
+
+  // Nuclear recovery: after a long idle the SDK's socket/audio context can get
+  // into a state where disconnect()+connect() won't recover (only a page reload
+  // does). Destroy the player and build a fresh one — a reload without reloading.
+  const recreatePlayer = useCallback(async () => {
+    if (recreatingRef.current) {
+      const s = Date.now();
+      while (recreatingRef.current && Date.now() - s < 9000) {
+        await new Promise((r) => setTimeout(r, 150));
+      }
+      return;
+    }
+    recreatingRef.current = true;
+    try {
+      try {
+        playerRef.current?.disconnect();
+      } catch {
+        /* ignore */
+      }
+      playerRef.current = null;
+      deviceIdRef.current = null;
+      setDeviceId(null);
+      initialized.current = false;
+      await initPlayer();
+      const start = Date.now();
+      while (!deviceIdRef.current && Date.now() - start < 8000) {
+        await new Promise((r) => setTimeout(r, 150));
+      }
+    } finally {
+      recreatingRef.current = false;
+    }
+  }, [initPlayer]);
+
+  recreatePlayerRef.current = recreatePlayer;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -422,6 +473,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           if (!res || !res.ok) {
             await reconnectDevice();
             res = await resumeHere();
+          }
+          if ((!res || !res.ok) && recreatePlayerRef.current) {
+            // Long-idle SDK breakage — rebuild the player and try once more.
+            await recreatePlayerRef.current();
+            await resumeHere();
           }
         }
       } else {
