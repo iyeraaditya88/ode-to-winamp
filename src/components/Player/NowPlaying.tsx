@@ -166,6 +166,7 @@ export default function NowPlaying({ progress, onCollapse }: NowPlayingProps) {
               sheet follows the drag via the shared progress value. */}
           <m.div
             onPanStart={() => {
+              document.body.classList.add('dragging-sheet');
               headerStart.current = progress.get();
             }}
             onPan={(_e, info) => {
@@ -173,6 +174,7 @@ export default function NowPlaying({ progress, onCollapse }: NowPlayingProps) {
               progress.set(Math.max(0, Math.min(1, p)));
             }}
             onPanEnd={(_e, info) => {
+              document.body.classList.remove('dragging-sheet');
               const p = progress.get();
               const close = info.velocity.y > 350 ? true : info.velocity.y < -350 ? false : p < 0.6;
               if (close) onCollapse();

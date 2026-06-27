@@ -78,6 +78,7 @@ export default function PlayerBar() {
           openSheet();
         }}
         onPanStart={() => {
+          document.body.classList.add('dragging-sheet');
           if (currentTrack) panStart.current = sheetProgress.get();
         }}
         onPan={(_e, info) => {
@@ -89,6 +90,7 @@ export default function PlayerBar() {
           sheetProgress.set(Math.max(0, Math.min(1, p)));
         }}
         onPanEnd={(_e, info) => {
+          document.body.classList.remove('dragging-sheet');
           if (!currentTrack) return;
           if (Math.abs(info.offset.x) > Math.abs(info.offset.y) + 6) return;
           justSwiped.current = true;

@@ -48,6 +48,14 @@ body {
   100% { height: 100%; }
 }
 
+/* Kill text selection globally while dragging the player sheet (framer onPan
+   doesn't suppress native selection the way drag does). */
+body.dragging-sheet,
+body.dragging-sheet * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
 /* ===== Classic Winamp skin (CSS recreation) ===== */
 /* Beveled metal panels — raised (out) and sunken (in). */
 .wa-out {
