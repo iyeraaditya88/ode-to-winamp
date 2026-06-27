@@ -13,8 +13,6 @@ import ProgressBar from './ProgressBar';
 import VolumeControl from './VolumeControl';
 import Equalizer from '@/components/Equalizer/Equalizer';
 import ClassicWinamp from './ClassicWinamp';
-import AddToPlaylistSheet from '@/components/Playlists/AddToPlaylistSheet';
-import type { SpotifyTrack } from '@/types/spotify';
 
 function fmt(ms: number) {
   const s = Math.floor(ms / 1000);
@@ -78,7 +76,6 @@ export default function NowPlaying({ progress, onCollapse }: NowPlayingProps) {
   const art = currentTrack?.album.images[0]?.url;
   const nextUp = upcoming();
   const [classic, setClassic] = useState(false);
-  const [addTarget, setAddTarget] = useState<SpotifyTrack | null>(null);
 
   // Lyrics content, shared between the modern and classic layouts.
   const lyricsScroll = (
@@ -197,17 +194,6 @@ export default function NowPlaying({ progress, onCollapse }: NowPlayingProps) {
                 className="text-[10px] sm:text-xs font-mono tracking-widest px-2.5 sm:px-3 py-1.5 rounded-sm border border-[#00b4b4]/40 text-[#00b4b4] hover:bg-[#00b4b4]/10 transition-colors whitespace-nowrap"
               >
                 {classic ? 'NEO-CLASSIC' : 'CLASSIC'}
-              </button>
-              <button
-                onClick={() => currentTrack && setAddTarget(currentTrack)}
-                disabled={!currentTrack}
-                title="Add to playlist"
-                className="flex items-center gap-2 text-white/62 hover:text-white transition-colors text-xs font-mono tracking-widest disabled:opacity-30"
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M4 7h11M4 12h11M4 17h7M17 14v6M14 17h6" strokeLinecap="round" />
-                </svg>
-                <span className="hidden sm:inline">ADD</span>
               </button>
               <button
                 onClick={() => share(currentTrack)}
@@ -423,8 +409,6 @@ export default function NowPlaying({ progress, onCollapse }: NowPlayingProps) {
             </div>
           </div>
           )}
-
-          <AddToPlaylistSheet track={addTarget} onClose={() => setAddTarget(null)} />
         </m.div>
   );
 }

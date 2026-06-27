@@ -7,11 +7,8 @@ import { useSearch } from '@/hooks/useSearch';
 import { usePlayer } from '@/contexts/PlayerContext';
 import SearchBar from './SearchBar';
 import RecognizePanel from '@/components/Recognize/RecognizePanel';
-import PlaylistsPanel from '@/components/Playlists/PlaylistsPanel';
 import Logo from '@/components/Logo';
-import type { SpotifyTrack, SpotifyPlaylist } from '@/types/spotify';
-
-type GridSource = { kind: 'liked' } | { kind: 'playlist'; id: string; name: string };
+import type { SpotifyTrack } from '@/types/spotify';
 
 const PhantomGrid = dynamic(() => import('@/components/Grid/PhantomGrid'), { ssr: false });
 
@@ -28,12 +25,7 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
   const { playTrack, currentTrack, deviceId } = usePlayer();
   const [searchOpen, setSearchOpen] = useState(false);
   const [recognizeOpen, setRecognizeOpen] = useState(false);
-  const [playlistsOpen, setPlaylistsOpen] = useState(false);
   const [frozenSongs, setFrozenSongs] = useState<SpotifyTrack[] | null>(null);
-  // Grid source: liked songs (default) or a chosen playlist loaded into the sphere.
-  const [source, setSource] = useState<GridSource>({ kind: 'liked' });
-  const [playlistSongs, setPlaylistSongs] = useState<SpotifyTrack[]>([]);
-  const [hasSwitched, setHasSwitched] = useState(false);
 
   const songs: SpotifyTrack[] = data?.pages.flatMap((p) => p.items.map((i) => i.track)) ?? [];
 
@@ -47,10 +39,7 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
     }
   }, [frozenSongs, songs, hasNextPage, burst]);
 
-  const likedGrid = frozenSongs ?? songs;
-  const gridSongs = source.kind === 'playlist' ? playlistSongs : likedGrid;
-  // Changing this remounts PhantomGrid so a source switch re-bursts cleanly.
-  const gridKey = source.kind === 'playlist' ? `pl-${source.id}` : 'liked';
+  const gridSongs = frozenSongs ?? songs;
 
   // Eagerly pull more pages so the grid has a rich pool — but stop once frozen.
   useEffect(() => {
@@ -61,28 +50,17 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === '/' && !searchOpen && !playlistsOpen && !(e.target instanceof HTMLInputElement)) {
+      if (e.key === '/' && !searchOpen && !(e.target instanceof HTMLInputElement)) {
         e.preventDefault();
         setSearchOpen(true);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [searchOpen, playlistsOpen]);
+  }, [searchOpen]);
 
   const handlePlay = (track: SpotifyTrack) => {
     playTrack(track, gridSongs);
-  };
-
-  const openPlaylistInSphere = (playlist: SpotifyPlaylist, tracks: SpotifyTrack[]) => {
-    setPlaylistSongs(tracks);
-    setSource({ kind: 'playlist', id: playlist.id, name: playlist.name });
-    setHasSwitched(true);
-  };
-
-  const backToLiked = () => {
-    setSource({ kind: 'liked' });
-    setHasSwitched(true);
   };
 
   // Playing from search queues the search results, so Next/Prev keep exploring
@@ -98,11 +76,10 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
       {/* WebGL draggable sphere grid lives at z-0 behind everything */}
       {gridSongs.length > 0 && (
         <PhantomGrid
-          key={gridKey}
           songs={gridSongs}
           onPlay={handlePlay}
           currentTrackId={currentTrack?.id}
-          burst={burst || hasSwitched}
+          burst={burst}
           onReady={onGridReady}
         />
       )}
@@ -117,33 +94,9 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-            {source.kind === 'playlist' ? (
-              <button
-                onClick={backToLiked}
-                title="Back to Liked Songs"
-                className="text-xs text-white/55 hover:text-white font-mono hidden md:inline-flex items-center gap-1.5 max-w-[200px]"
-              >
-                <span className="text-[#00b4b4]">←</span>
-                <span className="truncate">{source.name}</span>
-              </button>
-            ) : (
-              total > 0 && (
-                <span className="text-xs text-white/50 font-mono hidden md:inline">{total} liked songs</span>
-              )
+            {total > 0 && (
+              <span className="text-xs text-white/50 font-mono hidden md:inline">{total} liked songs</span>
             )}
-            <button
-              onClick={() => setPlaylistsOpen(true)}
-              aria-label="Playlists"
-              title="Your playlists"
-              className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-sm border border-white/10 bg-black/30 backdrop-blur-sm text-white/62 hover:text-white/85 hover:border-white/20 transition-colors text-xs font-mono"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M4 6h11M4 12h11M4 18h7" strokeLinecap="round" />
-                <circle cx="18" cy="16" r="3" />
-                <path d="M21 16V8l-3 1" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <span className="hidden sm:inline">Playlists</span>
-            </button>
             <button
               onClick={() => setRecognizeOpen(true)}
               aria-label="Identify a song"
@@ -221,12 +174,6 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
           setQuery(q);
           setSearchOpen(true);
         }}
-      />
-
-      <PlaylistsPanel
-        isOpen={playlistsOpen}
-        onClose={() => setPlaylistsOpen(false)}
-        onOpenInSphere={openPlaylistInSphere}
       />
     </div>
   );
