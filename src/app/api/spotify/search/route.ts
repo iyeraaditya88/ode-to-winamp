@@ -7,15 +7,16 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get('q');
+  const type = searchParams.get('type') === 'playlist' ? 'playlist' : 'track';
   // Development-mode Spotify apps cap /search at 10 results — higher values
   // return 400 "Invalid limit". Clamp so we never exceed the cap.
   const requested = Number(searchParams.get('limit') ?? '10');
   const limit = Math.min(10, Math.max(1, Number.isFinite(requested) ? requested : 10));
 
-  if (!q) return NextResponse.json({ tracks: { items: [] } });
+  if (!q) return NextResponse.json({ [`${type}s`]: { items: [] } });
 
   const res = await fetch(
-    `https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=track&limit=${limit}`,
+    `https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=${type}&limit=${limit}`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
 

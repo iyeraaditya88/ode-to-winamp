@@ -54,6 +54,41 @@ export interface SearchResults {
   };
 }
 
+export interface SpotifyPlaylist {
+  id: string;
+  uri: string;
+  name: string;
+  description: string | null;
+  images: SpotifyImage[];
+  owner: { id: string; display_name: string };
+  public: boolean | null;
+  collaborative: boolean;
+  tracks: { total: number };
+}
+
+export interface PlaylistsPage {
+  items: SpotifyPlaylist[];
+  total: number;
+  limit: number;
+  offset: number;
+  next: string | null;
+  previous: string | null;
+}
+
+export interface PlaylistTrackItem {
+  added_at: string;
+  track: SpotifyTrack | null;
+}
+
+export interface PlaylistTracksPage {
+  items: PlaylistTrackItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  next: string | null;
+  previous: string | null;
+}
+
 export interface SpotifyTokenResponse {
   access_token: string;
   token_type: string;

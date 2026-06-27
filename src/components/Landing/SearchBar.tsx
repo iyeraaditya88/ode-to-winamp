@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
+import AddToPlaylistSheet from '@/components/Playlists/AddToPlaylistSheet';
 import type { SpotifyTrack } from '@/types/spotify';
 
 interface SearchBarProps {
@@ -34,6 +35,7 @@ export default function SearchBar({
   const inputRef = useRef<HTMLInputElement>(null);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [needsReconnect, setNeedsReconnect] = useState(false);
+  const [addTarget, setAddTarget] = useState<SpotifyTrack | null>(null);
 
   const like = useCallback(async (id: string) => {
     try {
@@ -144,6 +146,20 @@ export default function SearchBar({
                       tabIndex={0}
                       onClick={(e) => {
                         e.stopPropagation();
+                        setAddTarget(track);
+                      }}
+                      title="Add to a playlist"
+                      className="shrink-0 p-1.5 rounded-full text-white/35 hover:text-white/80 transition-colors"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M4 7h11M4 12h11M4 17h7M17 14v6M14 17h6" strokeLinecap="round" />
+                      </svg>
+                    </span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.stopPropagation();
                         like(track.id);
                       }}
                       title="Add to Liked Songs"
@@ -171,6 +187,8 @@ export default function SearchBar({
               </a>
             )}
           </div>
+
+          <AddToPlaylistSheet track={addTarget} onClose={() => setAddTarget(null)} />
         </m.div>
       )}
     </AnimatePresence>
