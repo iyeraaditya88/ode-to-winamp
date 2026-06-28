@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import Image from 'next/image';
 import { AnimatePresence, m } from 'framer-motion';
 import { useMusicTaste } from '@/hooks/useMusicTaste';
+import { usePlayer } from '@/contexts/PlayerContext';
 import GenreRadar from './GenreRadar';
 
 interface Props {
@@ -13,9 +14,15 @@ interface Props {
   onExplore?: (query: string) => void;
 }
 
+function fmt(ms: number) {
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
 export default function MusicTastePanel({ isOpen, onClose, onExplore }: Props) {
-  const { profile, topArtists, exploreArtists, exploreLoading, phase, progress, analyzed, total, notConfigured } =
+  const { profile, topArtists, topSongs, exploreArtists, exploreLoading, refreshExplore, canRefresh, phase, progress, analyzed, total, notConfigured } =
     useMusicTaste(isOpen);
+  const { playTrack } = usePlayer();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -156,9 +163,54 @@ export default function MusicTastePanel({ isOpen, onClose, onExplore }: Props) {
                   </div>
                 )}
 
+                {/* Top songs */}
+                {topSongs.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-white/5">
+                    <p className="text-[10px] font-mono tracking-[0.3em] text-white/40 uppercase mb-3">Top songs</p>
+                    <div className="grid sm:grid-cols-2 gap-x-8 gap-y-1 max-w-3xl mx-auto">
+                      {topSongs.map((t, i) => {
+                        const art = t.album.images.slice(-1)[0]?.url;
+                        return (
+                          <button
+                            key={t.id}
+                            onClick={() => playTrack(t, topSongs)}
+                            className="group flex items-center gap-3 p-2 rounded-sm hover:bg-white/5 text-left transition-colors"
+                          >
+                            <span className="text-[10px] text-white/30 font-mono w-4 text-right">{i + 1}</span>
+                            <div className="relative h-9 w-9 shrink-0 rounded-sm overflow-hidden bg-white/10">
+                              {art && <Image src={art} alt="" fill sizes="36px" className="object-cover" />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm text-white/85 group-hover:text-white">{t.name}</p>
+                              <p className="truncate text-xs text-white/45">{t.artists.map((a) => a.name).join(', ')}</p>
+                            </div>
+                            <span className="text-[10px] text-white/35 font-mono tabular-nums">{fmt(t.duration_ms)}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Explore next */}
                 <div className="mt-8 pt-6 border-t border-white/5">
-                  <p className="text-[10px] font-mono tracking-[0.3em] text-white/40 uppercase mb-4">Explore next · based on your taste</p>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-[10px] font-mono tracking-[0.3em] text-white/40 uppercase">Explore next · based on your taste</p>
+                    {canRefresh && (
+                      <button
+                        onClick={refreshExplore}
+                        disabled={exploreLoading}
+                        title="Show different artists"
+                        className="flex items-center gap-1.5 text-[10px] font-mono tracking-widest uppercase text-white/45 hover:text-[#00b4b4] transition-colors disabled:opacity-40"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={exploreLoading ? 'animate-spin' : ''}>
+                          <path d="M21 12a9 9 0 1 1-3-6.7L21 8" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M21 3v5h-5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        Refresh
+                      </button>
+                    )}
+                  </div>
                   {exploreLoading && exploreArtists.length === 0 ? (
                     <div className="flex items-center gap-3 text-white/40 text-xs font-mono">
                       <span className="h-4 w-4 rounded-full border-2 border-white/10 border-t-[#00b4b4] animate-spin" />

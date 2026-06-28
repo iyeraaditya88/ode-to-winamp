@@ -1,12 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLikedSongs } from './useLikedSongs';
 import { aggregate, type ArtistTags, type TasteProfile } from '@/lib/genres';
+import type { SpotifyTrack } from '@/types/spotify';
 
-const CACHE_KEY = 'otw_taste_v2';
+const CACHE_KEY = 'otw_taste_v3';
 const TOP_ARTISTS = 75; // profile the most-liked artists (covers the taste, fast)
-const SIMILAR_SOURCES = 12; // use the top-N artists as seeds for "explore"
+const SIMILAR_SOURCES = 20; // top-N artists used as "explore" seeds
+const POOL_SIZE = 40; // candidate explore artists kept for refreshing
+const PAGE = 5;
 const CHUNK = 10; // artists per Last.fm call (under the serverless timeout)
 
 type Phase = 'idle' | 'library' | 'genres' | 'done';
@@ -16,10 +19,12 @@ export interface TopArtist {
   count: number;
   cover: string | null;
 }
-export interface ExploreArtist {
+export interface ExploreSeed {
   name: string;
-  cover: string | null;
   similarTo: string;
+}
+export interface ExploreArtist extends ExploreSeed {
+  cover: string | null;
 }
 
 interface Cached {
@@ -27,6 +32,8 @@ interface Cached {
   analyzed: number;
   profile: TasteProfile;
   topArtists: TopArtist[];
+  topSongs: SpotifyTrack[];
+  explorePool: ExploreSeed[];
   exploreArtists: ExploreArtist[];
 }
 
@@ -42,15 +49,21 @@ async function coverFor(name: string): Promise<string | null> {
   }
 }
 
+function page(pool: ExploreSeed[], start: number, n: number): ExploreSeed[] {
+  if (pool.length <= n) return pool;
+  return Array.from({ length: n }, (_, i) => pool[(start + i) % pool.length]);
+}
+
 /**
- * Builds the user's taste: genre distribution (Last.fm tags → macro genres), the
- * top artists they like, and similar artists to explore (Last.fm getSimilar,
- * excluding ones already in the library). Cached so reopening is instant.
+ * Builds the user's taste: genre distribution, top artists, top songs, and a
+ * refreshable set of similar artists to explore. Cached so reopening is instant.
  */
 export function useMusicTaste(enabled: boolean) {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useLikedSongs();
   const [profile, setProfile] = useState<TasteProfile | null>(null);
   const [topArtists, setTopArtists] = useState<TopArtist[]>([]);
+  const [topSongs, setTopSongs] = useState<SpotifyTrack[]>([]);
+  const [explorePool, setExplorePool] = useState<ExploreSeed[]>([]);
   const [exploreArtists, setExploreArtists] = useState<ExploreArtist[]>([]);
   const [exploreLoading, setExploreLoading] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
@@ -58,24 +71,31 @@ export function useMusicTaste(enabled: boolean) {
   const [analyzed, setAnalyzed] = useState(0);
   const [notConfigured, setNotConfigured] = useState(false);
   const ranRef = useRef(false);
+  const offsetRef = useRef(0);
 
   const total = data?.pages[0]?.total ?? 0;
 
-  // Pull every liked-songs page so the profile sees the whole library.
   useEffect(() => {
     if (enabled && hasNextPage && !isFetchingNextPage) fetchNextPage();
   }, [enabled, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // Reset so reopening recomputes (cache makes that instant) if a prior run was
-  // interrupted by closing the panel mid-compute.
   useEffect(() => {
     if (!enabled) ranRef.current = false;
   }, [enabled]);
 
+  // Cycle the explore section to the next page of candidates (new each click).
+  const refreshExplore = useCallback(async () => {
+    if (explorePool.length === 0) return;
+    setExploreLoading(true);
+    offsetRef.current = (offsetRef.current + PAGE) % explorePool.length;
+    const next = page(explorePool, offsetRef.current, PAGE);
+    const withCovers = await Promise.all(next.map(async (e) => ({ ...e, cover: await coverFor(e.name) })));
+    setExploreArtists(withCovers);
+    setExploreLoading(false);
+  }, [explorePool]);
+
   useEffect(() => {
     if (!enabled) return;
-    // NB: `phase` is deliberately NOT in the deps — setting it here must not
-    // re-run this effect, or the cleanup would cancel the in-flight fetch loop.
     if (!ranRef.current && hasNextPage) setPhase('library');
     if (ranRef.current || hasNextPage || !data) return;
     ranRef.current = true;
@@ -89,7 +109,10 @@ export function useMusicTaste(enabled: boolean) {
           setProfile(cached.profile);
           setAnalyzed(cached.analyzed);
           setTopArtists(cached.topArtists ?? []);
+          setTopSongs(cached.topSongs ?? []);
+          setExplorePool(cached.explorePool ?? []);
           setExploreArtists(cached.exploreArtists ?? []);
+          offsetRef.current = 0;
           setPhase('done');
           return;
         }
@@ -97,10 +120,12 @@ export function useMusicTaste(enabled: boolean) {
         /* ignore */
       }
 
-      // Rank artists by how many liked tracks they have; capture a cover.
+      // Rank artists by liked-track count (capture a cover); collect all tracks.
       const counts = new Map<string, { name: string; count: number; cover: string | null }>();
-      for (const page of data.pages) {
-        for (const item of page.items) {
+      const allTracks: SpotifyTrack[] = [];
+      for (const page2 of data.pages) {
+        for (const item of page2.items) {
+          allTracks.push(item.track);
           const imgs = item.track.album.images;
           const cover = imgs[1]?.url ?? imgs[0]?.url ?? null;
           for (const ar of item.track.artists) {
@@ -115,8 +140,27 @@ export function useMusicTaste(enabled: boolean) {
       const ranked = Array.from(counts.values()).sort((a, b) => b.count - a.count);
       const top = ranked.slice(0, TOP_ARTISTS);
       const topFive: TopArtist[] = top.slice(0, 5).map((a) => ({ name: a.name, count: a.count, cover: a.cover }));
+
+      // Top songs: by Spotify popularity (closest proxy to "most played" the API
+      // exposes); fall back to one track per top artist if popularity is stripped.
+      const byPop = [...allTracks].sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+      let songs = dedupeTracks(byPop).slice(0, 5);
+      if ((songs[0]?.popularity ?? 0) === 0) {
+        const seen = new Set<string>();
+        songs = [];
+        for (const a of top) {
+          const t = allTracks.find((tr) => !seen.has(tr.id) && tr.artists.some((ar) => ar.name === a.name));
+          if (t) {
+            songs.push(t);
+            seen.add(t.id);
+          }
+          if (songs.length >= 5) break;
+        }
+      }
+
       setAnalyzed(top.length);
       setTopArtists(topFive);
+      setTopSongs(songs);
       setPhase('genres');
       setProgress(0);
 
@@ -136,9 +180,7 @@ export function useMusicTaste(enabled: boolean) {
           }
           if (res.ok) {
             const { result } = await res.json();
-            for (const c of chunk) {
-              artistTags.push({ name: c.name, weight: c.count, tags: result?.[c.name] ?? [] });
-            }
+            for (const c of chunk) artistTags.push({ name: c.name, weight: c.count, tags: result?.[c.name] ?? [] });
           }
         } catch {
           /* skip chunk */
@@ -152,14 +194,14 @@ export function useMusicTaste(enabled: boolean) {
       setProfile(prof);
       setPhase('done');
 
-      // "Explore next": similar artists not already in the library.
+      // Explore pool: similar artists not already in the library.
       setExploreLoading(true);
       const librarySet = new Set(ranked.map((a) => a.name.toLowerCase()));
-      const sources = top.slice(0, SIMILAR_SOURCES);
+      const seeds = top.slice(0, SIMILAR_SOURCES);
       const sim = new Map<string, { name: string; score: number; similarTo: string; best: number }>();
-      for (let i = 0; i < sources.length; i += CHUNK) {
+      for (let i = 0; i < seeds.length; i += CHUNK) {
         if (cancelled) return;
-        const chunk = sources.slice(i, i + CHUNK);
+        const chunk = seeds.slice(i, i + CHUNK);
         try {
           const q = chunk.map((c) => c.name).join('|');
           const res = await fetch(`/api/similar?artists=${encodeURIComponent(q)}`);
@@ -184,18 +226,31 @@ export function useMusicTaste(enabled: boolean) {
           /* skip */
         }
       }
-      const explorePicks = Array.from(sim.values()).sort((a, b) => b.score - a.score).slice(0, 5);
-      const exploreFive: ExploreArtist[] = await Promise.all(
-        explorePicks.map(async (e) => ({ name: e.name, similarTo: e.similarTo, cover: await coverFor(e.name) }))
+      const pool: ExploreSeed[] = Array.from(sim.values())
+        .sort((a, b) => b.score - a.score)
+        .slice(0, POOL_SIZE)
+        .map((e) => ({ name: e.name, similarTo: e.similarTo }));
+      offsetRef.current = 0;
+      setExplorePool(pool);
+      const firstPage: ExploreArtist[] = await Promise.all(
+        page(pool, 0, PAGE).map(async (e) => ({ ...e, cover: await coverFor(e.name) }))
       );
       if (cancelled) return;
-      setExploreArtists(exploreFive);
+      setExploreArtists(firstPage);
       setExploreLoading(false);
 
       try {
         localStorage.setItem(
           CACHE_KEY,
-          JSON.stringify({ total, analyzed: top.length, profile: prof, topArtists: topFive, exploreArtists: exploreFive })
+          JSON.stringify({
+            total,
+            analyzed: top.length,
+            profile: prof,
+            topArtists: topFive,
+            topSongs: songs,
+            explorePool: pool,
+            exploreArtists: firstPage,
+          })
         );
       } catch {
         /* ignore */
@@ -208,5 +263,29 @@ export function useMusicTaste(enabled: boolean) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, hasNextPage, data, total]);
 
-  return { profile, topArtists, exploreArtists, exploreLoading, phase, progress, analyzed, total, notConfigured };
+  return {
+    profile,
+    topArtists,
+    topSongs,
+    exploreArtists,
+    exploreLoading,
+    refreshExplore,
+    canRefresh: explorePool.length > PAGE,
+    phase,
+    progress,
+    analyzed,
+    total,
+    notConfigured,
+  };
+}
+
+function dedupeTracks(tracks: SpotifyTrack[]): SpotifyTrack[] {
+  const seen = new Set<string>();
+  const out: SpotifyTrack[] = [];
+  for (const t of tracks) {
+    if (seen.has(t.id)) continue;
+    seen.add(t.id);
+    out.push(t);
+  }
+  return out;
 }
