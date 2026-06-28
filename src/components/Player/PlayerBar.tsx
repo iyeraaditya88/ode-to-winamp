@@ -149,17 +149,17 @@ export default function PlayerBar() {
                 )}
               </button>
               {currentTrack ? (
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       openSheet();
                     }}
-                    className="block truncate text-xs font-medium text-white/90 hover:text-white text-left"
+                    className="block w-full max-w-full truncate text-xs font-medium text-white/90 hover:text-white text-left"
                   >
                     {currentTrack.name}
                   </button>
-                  <p className="truncate text-[10px] text-white/62">
+                  <p className="truncate max-w-full text-[10px] text-white/62">
                     {currentTrack.artists.map((a) => a.name).join(', ')}
                   </p>
                 </div>
