@@ -4,7 +4,7 @@
   "private": true,
   "description": "A cinematic, self-hosted music player for your Spotify library — a phantom.land-style WebGL grid with in-browser playback, synced lyrics, song recognition, and a Last.fm-powered Music Taste genre radar.",
   "license": "MIT",
-  "author": "Aaditya Iyer",
+  "author": "Music for all",
   "repository": {
     "type": "git",
     "url": "https://github.com/iyeraaditya88/ode-to-winamp.git"
