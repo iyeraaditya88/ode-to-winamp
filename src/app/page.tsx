@@ -40,6 +40,18 @@ function LoginScreen({ error }: { error?: string }) {
         </a>
 
         <p className="mt-8 text-xs text-white/15 font-mono">Requires Spotify Premium for playback</p>
+        <p className="mt-3 text-[11px] text-white/30 font-mono leading-relaxed max-w-sm mx-auto">
+          This is a self-hosted Spotify app in Development Mode — only accounts added to its
+          allowlist (max 5) can sign in. Want your own?{' '}
+          <a
+            href="https://github.com/iyeraaditya88/ode-to-winamp"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[#00b4b4]/80 hover:text-[#00b4b4] underline"
+          >
+            Run your own copy →
+          </a>
+        </p>
       </div>
     </div>
   );

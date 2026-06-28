@@ -53,7 +53,7 @@ npm install
      *(Spotify requires a loopback IP for http — use `127.0.0.1`, not `localhost`.)*
    - Production: `https://YOUR-DOMAIN.vercel.app/api/auth/callback`
 4. Under **APIs used**, make sure **Web API** and **Web Playback SDK** are enabled.
-5. **Add yourself as a user:** the app is in *Development Mode*, so under **User Management** add the **Spotify email of every person** who will use your instance (up to 25). If you skip this, login fails with `User not registered`.
+5. **Add yourself as a user:** the app is in *Development Mode*, so under **User Management** add the **Spotify email of every person** who will use your instance (Spotify's current cap is **5 users**). If you skip this, login fails with `User not registered`.
 
 ### 3. (Optional) Get the extra keys
 
@@ -102,7 +102,7 @@ Open **http://127.0.0.1:3000** (use the same host as your redirect URI), click *
 
 This app is intentionally self‑hosted because Spotify won't grant a hobby app "Extended Quota". In Development Mode (as of Spotify's 2026 API changes), your app:
 
-- is limited to **25 manually‑added users** (you add their emails in the dashboard);
+- is limited to **5 manually‑added users** (you add their emails in the dashboard);
 - **cannot read genres** from Spotify (artist `genres` are stripped) → the Music Taste section uses **Last.fm** instead;
 - has **recommendations / related‑artists / audio‑features** disabled → "explore" uses **Last.fm similar artists**, and the equalizer is a tasteful simulation (DRM audio can't be analyzed anyway);
 - **caps search at ~10 results** and **requires Premium** for playback.
