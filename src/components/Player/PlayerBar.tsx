@@ -35,7 +35,7 @@ export default function PlayerBar() {
   } = usePlayer();
 
   const { settings, update } = useEqualizerSettings();
-  const { share, copied } = useShareTrack();
+  const { share } = useShareTrack();
   const art = currentTrack?.album.images.slice(-1)[0]?.url;
   // Suppress the click that may follow a swipe so it doesn't toggle twice.
   const justSwiped = useRef(false);
@@ -290,20 +290,14 @@ export default function PlayerBar() {
                 onClick={() => share(currentTrack)}
                 disabled={!currentTrack}
                 title="Share this song"
-                className={`transition-colors disabled:opacity-20 ${copied ? 'text-[#00b4b4]' : 'text-white/55 hover:text-white/80'}`}
+                className="transition-colors disabled:opacity-20 text-white/55 hover:text-white/80"
               >
-                {copied ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="18" cy="5" r="3" />
-                    <circle cx="6" cy="12" r="3" />
-                    <circle cx="18" cy="19" r="3" />
-                    <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" strokeLinecap="round" />
-                  </svg>
-                )}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="18" cy="5" r="3" />
+                  <circle cx="6" cy="12" r="3" />
+                  <circle cx="18" cy="19" r="3" />
+                  <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" strokeLinecap="round" />
+                </svg>
               </button>
 
               <VolumeControl volume={volume} onVolumeChange={setVolume} />
