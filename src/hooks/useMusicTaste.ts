@@ -37,9 +37,17 @@ export function useMusicTaste(enabled: boolean) {
     if (enabled && hasNextPage && !isFetchingNextPage) fetchNextPage();
   }, [enabled, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+  // Reset so reopening recomputes (cache makes that instant) if a prior run was
+  // interrupted by closing the panel mid-compute.
+  useEffect(() => {
+    if (!enabled) ranRef.current = false;
+  }, [enabled]);
+
   useEffect(() => {
     if (!enabled) return;
-    if (phase === 'idle') setPhase('library');
+    // NB: `phase` is deliberately NOT in the deps — setting it here must not
+    // re-run this effect, or the cleanup would cancel the in-flight fetch loop.
+    if (!ranRef.current && hasNextPage) setPhase('library');
     if (ranRef.current || hasNextPage || !data) return;
     ranRef.current = true;
     let cancelled = false;
@@ -115,7 +123,8 @@ export function useMusicTaste(enabled: boolean) {
     return () => {
       cancelled = true;
     };
-  }, [enabled, hasNextPage, data, total, phase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, hasNextPage, data, total]);
 
   return { profile, phase, progress, analyzed, total, notConfigured };
 }
