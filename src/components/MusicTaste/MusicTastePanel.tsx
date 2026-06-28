@@ -32,8 +32,12 @@ export default function MusicTastePanel({ isOpen, onClose }: Props) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[60] bg-[#080808]/97 backdrop-blur-md flex flex-col"
-          style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+          className="fixed inset-0 z-[60] backdrop-blur-xl flex flex-col"
+          style={{
+            backgroundColor: 'rgba(7,7,7,0.985)',
+            paddingTop: 'env(safe-area-inset-top)',
+            paddingBottom: 'env(safe-area-inset-bottom)',
+          }}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 sm:px-8 py-4 border-b border-white/5 shrink-0">
