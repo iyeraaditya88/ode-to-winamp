@@ -67,7 +67,10 @@ export function clearTokenCookies(response: NextResponse) {
 }
 
 export async function getFreshAccessToken(): Promise<string | null> {
-  const { accessToken, refreshToken, expiresAt } = getTokensFromCookies();
+  const store = cookies();
+  const accessToken = store.get(COOKIE_ACCESS)?.value ?? null;
+  const refreshToken = store.get(COOKIE_REFRESH)?.value ?? null;
+  const expiresAt = Number(store.get(COOKIE_EXPIRES)?.value ?? 0);
 
   if (!accessToken) return null;
   if (!isTokenExpired(expiresAt)) return accessToken;
@@ -75,6 +78,25 @@ export async function getFreshAccessToken(): Promise<string | null> {
 
   try {
     const refreshed = await refreshAccessToken(refreshToken);
+    // Persist the new token so we don't re-refresh on every request, and so a
+    // rotated refresh token isn't lost — losing it breaks the session and, with
+    // desktop + phone refreshing concurrently, can leave a device unable to
+    // authenticate the playback SDK ("stuck initializing").
+    try {
+      const newExpiresAt = Date.now() + refreshed.expires_in * 1000 - 60_000;
+      const opts = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax' as const,
+        path: '/',
+        maxAge: 60 * 60 * 24 * 30,
+      };
+      store.set(COOKIE_ACCESS, refreshed.access_token, opts);
+      store.set(COOKIE_EXPIRES, String(newExpiresAt), opts);
+      if (refreshed.refresh_token) store.set(COOKIE_REFRESH, refreshed.refresh_token, opts);
+    } catch {
+      // cookies() is read-only in some contexts — fine, just don't persist.
+    }
     return refreshed.access_token;
   } catch {
     return null;

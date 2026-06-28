@@ -35,3 +35,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env*
+
+# raw screen recordings (compress to mp4/gif before committing)
+*.mov

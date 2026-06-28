@@ -11,6 +11,7 @@ interface PlayerState {
   duration: number;
   volume: number;
   deviceId: string | null;
+  playerError: string | null;
   queue: SpotifyTrack[];
   currentIndex: number;
   shuffle: boolean;
@@ -32,6 +33,7 @@ interface PlayerActions {
   playNext: () => void;
   playPrev: () => void;
   upcoming: () => SpotifyTrack[];
+  retryPlayer: () => void;
 }
 
 const PlayerContext = createContext<(PlayerState & PlayerActions) | null>(null);
@@ -43,6 +45,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.8);
   const [deviceId, setDeviceId] = useState<string | null>(null);
+  const [playerError, setPlayerError] = useState<string | null>(null);
   const [queue, setQueue] = useState<SpotifyTrack[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [shuffle, setShuffle] = useState(false);
@@ -226,7 +229,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     initialized.current = true;
 
     const { token } = await fetch('/api/auth/token').then((r) => r.json()).catch(() => ({ token: null }));
-    if (!token) return;
+    if (!token) {
+      // Transient token failure — DON'T leave the latch set, or init never
+      // retries and the UI is wedged on "Initializing player" forever.
+      initialized.current = false;
+      setPlayerError('reconnect');
+      return;
+    }
 
     const player = new window.Spotify.Player({
       name: 'Ode to Winamp',
@@ -241,6 +250,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setDeviceId(device_id);
       deviceIdRef.current = device_id;
       readySeqRef.current += 1;
+      setPlayerError(null);
     });
 
     player.addListener('not_ready', () => {
@@ -300,12 +310,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     player.addListener('account_error', ({ message }: { message: string }) => {
       console.error('Spotify account error (Premium required):', message);
+      setPlayerError('Spotify Premium is required for playback.');
     });
     player.addListener('initialization_error', ({ message }: { message: string }) => {
       console.error('Spotify init error:', message);
+      setPlayerError("This browser can't initialize the player.");
     });
     player.addListener('authentication_error', ({ message }: { message: string }) => {
       console.error('Spotify auth error:', message);
+      // Let the next init re-create the player with a fresh token.
+      initialized.current = false;
+      setPlayerError('reconnect');
     });
 
     await player.connect();
@@ -345,6 +360,25 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, [initPlayer]);
 
   recreatePlayerRef.current = recreatePlayer;
+
+  // Manual retry from the UI when the player is stuck/errored.
+  const retryPlayer = useCallback(() => {
+    setPlayerError(null);
+    recreatePlayerRef.current?.();
+  }, []);
+
+  // Watchdog: if no device registers within ~12s (and there's no hard error),
+  // rebuild once; if it still doesn't come up, surface a retry instead of an
+  // endless spinner. Catches mobile SDK hiccups + transient token failures.
+  useEffect(() => {
+    if (deviceId || playerError) return;
+    const t = setTimeout(async () => {
+      if (deviceIdRef.current) return;
+      await recreatePlayerRef.current?.();
+      if (!deviceIdRef.current) setPlayerError('slow');
+    }, 12000);
+    return () => clearTimeout(t);
+  }, [deviceId, playerError]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -545,12 +579,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     duration,
     volume,
     deviceId,
+    playerError,
     queue,
     currentIndex,
     shuffle,
     showLyrics,
     showEqualizer,
     showNowPlaying,
+    retryPlayer,
     setIsPlaying: togglePlay,
     setPosition: seekTo,
     setVolume: async (v) => {

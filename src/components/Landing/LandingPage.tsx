@@ -23,7 +23,7 @@ interface LandingPageProps {
 export default function LandingPage({ burst = true, onGridReady }: LandingPageProps) {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error } = useLikedSongs();
   const { query, setQuery, results: searchResults, isLoading: searchLoading } = useSearch();
-  const { playTrack, currentTrack, deviceId, showNowPlaying } = usePlayer();
+  const { playTrack, currentTrack, deviceId, showNowPlaying, playerError, retryPlayer } = usePlayer();
   const [searchOpen, setSearchOpen] = useState(false);
   const [recognizeOpen, setRecognizeOpen] = useState(false);
   const [musicTasteOpen, setMusicTasteOpen] = useState(false);
@@ -158,8 +158,26 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
       </header>
 
       {!deviceId && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-30 rounded-sm border border-[#00b4b4]/20 bg-black/50 backdrop-blur-sm px-4 py-2 text-xs text-[#00b4b4]/70 font-mono">
-          Initializing player…
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-30 rounded-sm border border-[#00b4b4]/20 bg-black/60 backdrop-blur-sm px-4 py-2 text-xs font-mono flex items-center gap-3">
+          {!playerError ? (
+            <span className="text-[#00b4b4]/70">Initializing player…</span>
+          ) : playerError === 'reconnect' ? (
+            <>
+              <span className="text-white/70">Spotify session expired.</span>
+              <a href="/api/auth/login" className="text-[#00b4b4] hover:underline">
+                Reconnect →
+              </a>
+            </>
+          ) : (
+            <>
+              <span className="text-white/70">
+                {playerError === 'slow' ? "Player didn't start." : playerError}
+              </span>
+              <button onClick={retryPlayer} className="text-[#00b4b4] hover:underline">
+                Retry
+              </button>
+            </>
+          )}
         </div>
       )}
 
