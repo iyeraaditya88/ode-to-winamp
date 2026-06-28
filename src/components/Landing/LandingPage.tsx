@@ -198,7 +198,15 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
         }}
       />
 
-      <MusicTastePanel isOpen={musicTasteOpen} onClose={() => setMusicTasteOpen(false)} />
+      <MusicTastePanel
+        isOpen={musicTasteOpen}
+        onClose={() => setMusicTasteOpen(false)}
+        onExplore={(q) => {
+          setMusicTasteOpen(false);
+          setQuery(q);
+          setSearchOpen(true);
+        }}
+      />
     </div>
   );
 }

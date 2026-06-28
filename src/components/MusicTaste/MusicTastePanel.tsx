@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import Image from 'next/image';
 import { AnimatePresence, m } from 'framer-motion';
 import { useMusicTaste } from '@/hooks/useMusicTaste';
 import GenreRadar from './GenreRadar';
@@ -8,10 +9,13 @@ import GenreRadar from './GenreRadar';
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  /** Open the search panel pre-filled (used by the "explore" artist cards). */
+  onExplore?: (query: string) => void;
 }
 
-export default function MusicTastePanel({ isOpen, onClose }: Props) {
-  const { profile, phase, progress, analyzed, total, notConfigured } = useMusicTaste(isOpen);
+export default function MusicTastePanel({ isOpen, onClose, onExplore }: Props) {
+  const { profile, topArtists, exploreArtists, exploreLoading, phase, progress, analyzed, total, notConfigured } =
+    useMusicTaste(isOpen);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -132,6 +136,57 @@ export default function MusicTastePanel({ isOpen, onClose }: Props) {
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* Top bands you like */}
+                {topArtists.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-white/5">
+                    <p className="text-[10px] font-mono tracking-[0.3em] text-white/40 uppercase mb-4">Your top bands</p>
+                    <div className="flex gap-4 sm:gap-6 overflow-x-auto justify-start sm:justify-center pb-1">
+                      {topArtists.map((a) => (
+                        <div key={a.name} className="flex flex-col items-center gap-2 shrink-0 w-[84px]">
+                          <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden bg-white/10 ring-1 ring-white/10">
+                            {a.cover && <Image src={a.cover} alt="" fill sizes="80px" className="object-cover" />}
+                          </div>
+                          <p className="text-xs text-white/85 text-center truncate w-full">{a.name}</p>
+                          <p className="text-[10px] text-white/40 font-mono">{a.count} songs</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Explore next */}
+                <div className="mt-8 pt-6 border-t border-white/5">
+                  <p className="text-[10px] font-mono tracking-[0.3em] text-white/40 uppercase mb-4">Explore next · based on your taste</p>
+                  {exploreLoading && exploreArtists.length === 0 ? (
+                    <div className="flex items-center gap-3 text-white/40 text-xs font-mono">
+                      <span className="h-4 w-4 rounded-full border-2 border-white/10 border-t-[#00b4b4] animate-spin" />
+                      Finding artists you might love…
+                    </div>
+                  ) : (
+                    <div className="flex gap-4 sm:gap-6 overflow-x-auto justify-start sm:justify-center pb-1">
+                      {exploreArtists.map((a) => (
+                        <button
+                          key={a.name}
+                          onClick={() => onExplore?.(a.name)}
+                          title={`Search ${a.name}`}
+                          className="group flex flex-col items-center gap-2 shrink-0 w-[84px]"
+                        >
+                          <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden bg-white/10 ring-1 ring-white/10 group-hover:ring-[#00b4b4]/60 transition">
+                            {a.cover && <Image src={a.cover} alt="" fill sizes="80px" className="object-cover" />}
+                            <span className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white">
+                              <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                              </svg>
+                            </span>
+                          </div>
+                          <p className="text-xs text-white/85 text-center truncate w-full group-hover:text-white">{a.name}</p>
+                          <p className="text-[10px] text-white/40 font-mono truncate w-full text-center">like {a.similarTo}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
