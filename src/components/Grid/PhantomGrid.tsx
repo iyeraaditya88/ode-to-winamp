@@ -65,9 +65,10 @@ interface GridSceneProps {
   distortionRef: React.MutableRefObject<number>;
   burst: boolean;
   onReady?: () => void;
+  paused?: boolean;
 }
 
-function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onReady }: GridSceneProps) {
+function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onReady, paused }: GridSceneProps) {
   const { viewport, size, camera, gl } = useThree();
   const getTexture = useTextureCache();
   const groupRef = useRef<THREE.Group>(null);
@@ -95,6 +96,13 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
   // Start zoomed out by default (preferred view); user can scroll/pinch to zoom in.
   const zoomRef = useRef(isMobile ? 11.5 : 13.5); // target camera z (scroll/pinch zoom level)
   const pinchingRef = useRef(false); // a two-finger pinch is in progress
+
+  // Keyboard selection cursor: a focus ring hops album-to-album with the arrow
+  // keys, the camera eases to keep it centered, Enter/Space plays it. Tracks a
+  // logical infinite-lattice cell; deactivated as soon as the mouse takes over.
+  const selCell = useRef<{ cx: number; cy: number } | null>(null);
+  const selActive = useRef(false);
+  const panTarget = useRef<{ x: number; y: number } | null>(null);
 
   // Signal readiness after a few warm-up frames (shader compiled, first
   // textures uploaded) so the intro can burst with no black gap.
@@ -156,11 +164,40 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
     return { mesh, mat };
   }, [TILE]);
 
+  // Keyboard focus ring — a crisp white rounded-rect outline that frames the
+  // selected tile (deliberately not teal, to read as "focus" vs the now-playing
+  // glow). Drawn to a canvas texture so the border has real thickness.
+  const focusRing = useMemo(() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const ctx = c.getContext('2d')!;
+    const inset = 16;
+    const r = 26;
+    ctx.lineWidth = 12;
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.shadowColor = 'rgba(0,216,216,0.9)';
+    ctx.shadowBlur = 14;
+    ctx.beginPath();
+    ctx.moveTo(inset + r, inset);
+    ctx.arcTo(256 - inset, inset, 256 - inset, 256 - inset, r);
+    ctx.arcTo(256 - inset, 256 - inset, inset, 256 - inset, r);
+    ctx.arcTo(inset, 256 - inset, inset, inset, r);
+    ctx.arcTo(inset, inset, 256 - inset, inset, r);
+    ctx.stroke();
+    const tex = new THREE.CanvasTexture(c);
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false, toneMapped: false });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(TILE * 1.16, TILE * 1.16), mat);
+    mesh.position.z = 0.06;
+    mesh.visible = false;
+    return { mesh, mat, tex };
+  }, [TILE]);
+
   useEffect(() => {
     const group = groupRef.current;
     if (!group) return;
     tiles.forEach((t) => group.add(t.mesh));
     group.add(glow.mesh);
+    group.add(focusRing.mesh);
     return () => {
       tiles.forEach((t) => {
         group.remove(t.mesh);
@@ -168,8 +205,11 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
       });
       group.remove(glow.mesh);
       glow.mat.dispose();
+      group.remove(focusRing.mesh);
+      focusRing.mat.dispose();
+      focusRing.tex.dispose();
     };
-  }, [tiles, glow]);
+  }, [tiles, glow, focusRing]);
 
   // Map screen pixels to world units at the z=0 plane.
   const pxToWorld = viewport.width / size.width;
@@ -200,6 +240,8 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
 
     const onDown = (e: PointerEvent) => {
       if (pinchingRef.current) return;
+      selActive.current = false; // mouse takes over from keyboard selection
+      panTarget.current = null;
       dragging.current = true;
       hoveredTile.current = -1; // no hover scale-up while dragging
       moved.current = 0;
@@ -220,6 +262,9 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
       };
 
       if (!dragging.current) {
+        // Real pointer movement hands control back to the mouse.
+        selActive.current = false;
+        panTarget.current = null;
         // Hover detection here (on actual pointer movement) instead of raycasting
         // every frame — far cheaper when the pointer is still.
         const tile = tileUnderPointer(e.clientX, e.clientY);
@@ -321,6 +366,53 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
     };
   }, [gl, camera, pxToWorld, distortionRef, tileUnderPointer, songs, onPlay, REST_DIST, DRAG_DIST, ZOOM_MIN, ZOOM_MAX]);
 
+  // Keyboard selection: arrows move a focus cursor cell-by-cell, Enter/Space
+  // plays the selected album. Centers the selection by easing the pan (useFrame).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (paused || songs.length === 0) return;
+      const tag = (document.activeElement?.tagName ?? '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+
+      const isArrow =
+        e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown';
+      const isPlayKey = e.key === 'Enter' || e.key === ' ';
+
+      if (isArrow) {
+        e.preventDefault();
+        // Engage from the cell currently at screen centre on first press.
+        if (!selActive.current || !selCell.current) {
+          const ox = pan.current.x + ambient.current.x;
+          const oy = pan.current.y + ambient.current.y;
+          selCell.current = { cx: Math.round(-ox / STRIDE), cy: Math.round(-oy / STRIDE) };
+          selActive.current = true;
+        }
+        const c = selCell.current;
+        if (e.key === 'ArrowLeft') c.cx -= 1;
+        else if (e.key === 'ArrowRight') c.cx += 1;
+        else if (e.key === 'ArrowUp') c.cy += 1; // world +y is up
+        else if (e.key === 'ArrowDown') c.cy -= 1;
+        panTarget.current = { x: -c.cx * STRIDE, y: -c.cy * STRIDE };
+        return;
+      }
+
+      if (isPlayKey && selActive.current && selCell.current) {
+        e.preventDefault();
+        const content = posMod(selCell.current.cx + selCell.current.cy * CONTENT_SKEW, songs.length);
+        const track = songs[content];
+        if (track) onPlay(track);
+        return;
+      }
+
+      if (e.key === 'Escape' && selActive.current) {
+        selActive.current = false;
+        panTarget.current = null;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [paused, songs, onPlay, STRIDE]);
+
   // Keep the resting curvature in sync with the breakpoint (not while dragging).
   useEffect(() => {
     if (!dragging.current) distortionRef.current = REST_DIST;
@@ -350,11 +442,20 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
       entranceStart.current < 0 ? 0 : Math.min(1, (time - entranceStart.current) / ENTRANCE_DURATION);
     const maxDist = Math.max(1, Math.hypot(viewport.width / 2, viewport.height / 2));
     // Inertia: keep gliding after release, damping velocity toward 0 at 0.1.
+    // When the keyboard cursor is active, ease the pan to centre the selection
+    // instead (and kill any leftover inertia so they don't fight).
     if (!dragging.current) {
-      pan.current.x += vel.current.x;
-      pan.current.y += vel.current.y;
-      vel.current.x = THREE.MathUtils.lerp(vel.current.x, 0, 0.1);
-      vel.current.y = THREE.MathUtils.lerp(vel.current.y, 0, 0.1);
+      if (selActive.current && panTarget.current) {
+        pan.current.x = THREE.MathUtils.lerp(pan.current.x, panTarget.current.x, 0.16);
+        pan.current.y = THREE.MathUtils.lerp(pan.current.y, panTarget.current.y, 0.16);
+        vel.current.x = 0;
+        vel.current.y = 0;
+      } else {
+        pan.current.x += vel.current.x;
+        pan.current.y += vel.current.y;
+        vel.current.x = THREE.MathUtils.lerp(vel.current.x, 0, 0.1);
+        vel.current.y = THREE.MathUtils.lerp(vel.current.y, 0, 0.1);
+      }
     }
 
     // Ambient parallax — drift opposite to the cursor, eased.
@@ -363,6 +464,13 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
 
     const ox = pan.current.x + ambient.current.x;
     const oy = pan.current.y + ambient.current.y;
+
+    // Selected song (keyboard cursor) — used to frame + enlarge that tile.
+    const selContent =
+      selActive.current && selCell.current
+        ? posMod(selCell.current.cx + selCell.current.cy * CONTENT_SKEW, songs.length)
+        : -1;
+    let selScale = 1;
 
     // Hover is computed in the pointermove handler (not every frame).
     for (const t of tiles) {
@@ -402,20 +510,23 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
         }
       }
 
-      // Scale: hovered tile grows, current-playing tile stays slightly larger.
-      const isHovered = t.mesh.userData.poolIndex === hoveredTile.current;
+      // Scale: selected/hovered tile grows, current-playing tile stays larger.
+      // The mouse hover is suppressed while the keyboard cursor is active.
+      const isHovered = !selActive.current && t.mesh.userData.poolIndex === hoveredTile.current;
       const isPlaying = currentTrackId && songs[t.contentIndex]?.id === currentTrackId;
-      t.targetScale = isPlaying ? 1.14 : isHovered ? 1.12 : 1;
+      const isSelected = selContent >= 0 && t.contentIndex === selContent;
+      t.targetScale = isSelected ? 1.16 : isPlaying ? 1.14 : isHovered ? 1.12 : 1;
       t.scale = THREE.MathUtils.lerp(t.scale, t.targetScale, 0.12);
       t.mesh.scale.setScalar(t.scale * ent);
 
       // Dim everything a little more when something is playing so it pops.
       const anyPlaying = !!currentTrackId;
-      const op = isPlaying ? 1 : isHovered ? 1 : anyPlaying ? 0.78 : 0.92;
+      const op = isPlaying || isSelected || isHovered ? 1 : anyPlaying ? 0.78 : 0.92;
       t.baseOpacity = THREE.MathUtils.lerp(t.baseOpacity, op, 0.1);
       t.material.opacity = t.baseOpacity * ent;
 
       if (isPlaying) playingPos = { x: x * ent, y: y * ent, scale: t.scale * ent };
+      if (isSelected) selScale = t.scale * ent;
     }
 
     // Position + pulse the glow halo behind the playing tile.
@@ -430,6 +541,23 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
     } else {
       glow.mat.opacity = THREE.MathUtils.lerp(glow.mat.opacity, 0, 0.15);
       if (glow.mat.opacity < 0.01) glow.mesh.visible = false;
+    }
+
+    // Keyboard focus ring — frame the selected cell (computed directly from the
+    // selection so it's robust to tile recycling), gliding to centre with it.
+    if (selContent >= 0 && selCell.current) {
+      let fx = posMod(selCell.current.cx * STRIDE + ox, totalW);
+      if (fx > totalW / 2) fx -= totalW;
+      let fy = posMod(selCell.current.cy * STRIDE + oy, totalH);
+      if (fy > totalH / 2) fy -= totalH;
+      focusRing.mesh.visible = true;
+      focusRing.mesh.position.x = fx;
+      focusRing.mesh.position.y = fy;
+      focusRing.mesh.scale.setScalar(selScale || 1);
+      focusRing.mat.opacity = THREE.MathUtils.lerp(focusRing.mat.opacity, 0.95, 0.25);
+    } else {
+      focusRing.mat.opacity = THREE.MathUtils.lerp(focusRing.mat.opacity, 0, 0.2);
+      if (focusRing.mat.opacity < 0.01) focusRing.mesh.visible = false;
     }
   });
 
@@ -484,6 +612,7 @@ export default function PhantomGrid({ songs, onPlay, currentTrackId, burst = tru
           distortionRef={distortionRef}
           burst={burst}
           onReady={onReady}
+          paused={paused}
         />
         <EffectComposer>
           <LensDistortion distortionRef={distortionRef} />
@@ -492,7 +621,7 @@ export default function PhantomGrid({ songs, onPlay, currentTrackId, burst = tru
 
       {hint && (
         <div className="pointer-events-none absolute bottom-28 left-1/2 -translate-x-1/2 text-[10px] tracking-[0.3em] text-white/55 font-mono uppercase animate-pulse">
-          Drag to explore · Scroll / pinch to zoom · Tap to play
+          Drag or arrow keys to explore · Scroll / pinch to zoom · Tap or Enter to play
         </div>
       )}
     </div>
