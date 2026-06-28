@@ -410,10 +410,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // page and Spotify drops the device, leaving a stale "playing" UI; on a second
   // device the audio may live elsewhere. Reflect the SDK's actual state.
   useEffect(() => {
+    // iOS freezes the page in the background and suspends/tears down the audio
+    // element. Reset the activation latch so the NEXT play tap re-unlocks audio
+    // inside a real user gesture — without this, a tap after idle plays in the
+    // UI but stays silent (the rebuilt element was never re-armed by a gesture).
+    const markHidden = () => {
+      hiddenAtRef.current = Date.now();
+      activatedRef.current = false;
+    };
+
     const resync = async () => {
       if (typeof document === 'undefined') return;
       if (document.visibilityState === 'hidden') {
-        hiddenAtRef.current = Date.now();
+        markHidden();
         return;
       }
       const p = playerRef.current;
@@ -443,9 +452,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     };
     document.addEventListener('visibilitychange', resync);
     window.addEventListener('pageshow', resync);
+    // pagehide also fires when iOS sends the PWA to the background / bfcache.
+    window.addEventListener('pagehide', markHidden);
     return () => {
       document.removeEventListener('visibilitychange', resync);
       window.removeEventListener('pageshow', resync);
+      window.removeEventListener('pagehide', markHidden);
     };
   }, []);
 
