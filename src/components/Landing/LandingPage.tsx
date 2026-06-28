@@ -13,7 +13,7 @@ import type { SpotifyTrack } from '@/types/spotify';
 
 const PhantomGrid = dynamic(() => import('@/components/Grid/PhantomGrid'), { ssr: false });
 
-const MAX_PREFETCH = 200; // cap how many liked songs feed the grid
+const INITIAL_POOL = 150; // grid shows this for a snappy entrance, then upgrades to the full library
 
 interface LandingPageProps {
   burst?: boolean;
@@ -36,24 +36,26 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
     [data]
   );
 
-  // Freeze the tile pool once the library is loaded (or at burst, whichever is
-  // first). The grid maps tiles via index % length, so a *growing* length would
-  // remap every tile and churn textures — the visible pulse. Freezing stops it.
+  // The grid maps tiles via index % songs.length, so a *growing* length remaps
+  // every tile and churns textures (the pulse). To stay smooth AND show the whole
+  // library: freeze a stable initial pool for the entrance, then swap to the full
+  // set ONCE every page has loaded (a single, deliberate update — no churn).
   useEffect(() => {
-    if (frozenSongs || songs.length === 0) return;
-    if (songs.length >= MAX_PREFETCH || !hasNextPage || burst) {
-      setFrozenSongs(songs);
+    if (songs.length === 0) return;
+    if (!frozenSongs) {
+      if (songs.length >= INITIAL_POOL || !hasNextPage) setFrozenSongs(songs.slice(0, INITIAL_POOL));
+    } else if (!hasNextPage && songs.length > frozenSongs.length) {
+      setFrozenSongs(songs); // upgrade to the complete library
     }
-  }, [frozenSongs, songs, hasNextPage, burst]);
+  }, [frozenSongs, songs, hasNextPage]);
 
-  const gridSongs = frozenSongs ?? songs;
+  // Only ever hand the grid a frozen (stable) array — never the growing one.
+  const gridSongs = useMemo(() => frozenSongs ?? [], [frozenSongs]);
 
-  // Eagerly pull more pages so the grid has a rich pool — but stop once frozen.
+  // Background-load the ENTIRE liked library so the grid is extensive.
   useEffect(() => {
-    if (!frozenSongs && hasNextPage && !isFetchingNextPage && songs.length < MAX_PREFETCH) {
-      fetchNextPage();
-    }
-  }, [hasNextPage, isFetchingNextPage, songs.length, fetchNextPage, frozenSongs]);
+    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, songs.length, fetchNextPage]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
