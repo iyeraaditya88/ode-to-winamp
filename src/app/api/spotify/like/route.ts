@@ -3,11 +3,13 @@ import { getFreshAccessToken } from '@/lib/auth';
 
 // Spotify's Feb 2026 migration replaced the per-type saved-tracks endpoints
 // (PUT/DELETE /v1/me/tracks, GET /v1/me/tracks/contains — all now 403 for
-// dev-mode apps) with a UNIFIED library API keyed by Spotify URIs:
-//   PUT  /v1/me/library            body { uris: ['spotify:track:ID'] }
-//   DELETE /v1/me/library          body { uris: ['spotify:track:ID'] }
+// dev-mode apps) with a UNIFIED library API. Per the REST reference, the
+// Spotify URIs go in the `uris` QUERY parameter (the migration guide's
+// put('/me/library', {uris}) is the SDK form, which serialises to ?uris=):
+//   PUT  /v1/me/library?uris=spotify:track:ID
+//   DELETE /v1/me/library?uris=spotify:track:ID
 //   GET  /v1/me/library/contains?uris=spotify:track:ID
-const trackUri = (id: string) => `spotify:track:${id}`;
+const trackUri = (id: string) => encodeURIComponent(`spotify:track:${id}`);
 
 /** Add (PUT) or remove (DELETE) a track from the user's library. */
 async function mutate(request: NextRequest, method: 'PUT' | 'DELETE') {
@@ -17,10 +19,9 @@ async function mutate(request: NextRequest, method: 'PUT' | 'DELETE') {
   const id = new URL(request.url).searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
-  const res = await fetch('https://api.spotify.com/v1/me/library', {
+  const res = await fetch(`https://api.spotify.com/v1/me/library?uris=${trackUri(id)}`, {
     method,
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ uris: [trackUri(id)] }),
+    headers: { Authorization: `Bearer ${token}` },
   });
 
   if (!res.ok) {
@@ -42,7 +43,8 @@ export async function GET(request: NextRequest) {
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
   const res = await fetch(
-    `https://api.spotify.com/v1/me/library/contains?uris=${encodeURIComponent(trackUri(id))}`,
+    // trackUri() is already URL-encoded — don't double-encode it.
+    `https://api.spotify.com/v1/me/library/contains?uris=${trackUri(id)}`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
   if (!res.ok) return NextResponse.json({ liked: false });
@@ -60,7 +62,7 @@ export async function GET(request: NextRequest) {
           !!(first as { in_library?: boolean })?.in_library;
   } else if (data && typeof data === 'object') {
     const obj = data as Record<string, unknown>;
-    liked = !!obj[trackUri(id)] || !!obj.contains || !!obj.in_library;
+    liked = !!obj[`spotify:track:${id}`] || !!obj.contains || !!obj.in_library;
   }
   return NextResponse.json({ liked });
 }
