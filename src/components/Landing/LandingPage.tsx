@@ -7,6 +7,7 @@ import { useSearch } from '@/hooks/useSearch';
 import { usePlayer } from '@/contexts/PlayerContext';
 import SearchBar from './SearchBar';
 import RecognizePanel from '@/components/Recognize/RecognizePanel';
+import MusicTastePanel from '@/components/MusicTaste/MusicTastePanel';
 import Logo from '@/components/Logo';
 import type { SpotifyTrack } from '@/types/spotify';
 
@@ -25,6 +26,7 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
   const { playTrack, currentTrack, deviceId, showNowPlaying } = usePlayer();
   const [searchOpen, setSearchOpen] = useState(false);
   const [recognizeOpen, setRecognizeOpen] = useState(false);
+  const [musicTasteOpen, setMusicTasteOpen] = useState(false);
   const [frozenSongs, setFrozenSongs] = useState<SpotifyTrack[] | null>(null);
 
   // Memoised so a stable array feeds the freeze effect + grid (avoids a fresh
@@ -108,6 +110,16 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
               <span className="text-xs text-white/50 font-mono hidden md:inline">{total} liked songs</span>
             )}
             <button
+              onClick={() => setMusicTasteOpen(true)}
+              aria-label="Music taste"
+              title="Your music taste"
+              className="flex items-center justify-center px-2.5 py-1.5 rounded-sm border border-white/10 bg-black/30 backdrop-blur-sm text-white/62 hover:text-[#00b4b4] hover:border-[#00b4b4]/40 transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                <path d="M12 3l2.4 5.5 5.9.5-4.5 3.9 1.4 5.8L12 17.8 6.8 18.7l1.4-5.8-4.5-3.9 5.9-.5z" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <button
               onClick={() => setRecognizeOpen(true)}
               aria-label="Identify a song"
               title="Identify a song playing"
@@ -185,6 +197,8 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
           setSearchOpen(true);
         }}
       />
+
+      <MusicTastePanel isOpen={musicTasteOpen} onClose={() => setMusicTasteOpen(false)} />
     </div>
   );
 }
