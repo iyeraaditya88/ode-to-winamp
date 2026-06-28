@@ -6,13 +6,15 @@ A custom, cinematic music player for your **Spotify** library — a phantom.land
 
 ---
 
-## Screenshots
+## Demo
 
-![Liked-songs WebGL grid](screenshots/grid.jpg)
+![Ode to Winamp demo](screenshots/demo.gif)
 
-| Now Playing | Classic (Winamp) | Music Taste | Recognize |
-|---|---|---|---|
-| ![Now Playing with synced lyrics](screenshots/now-playing.jpg) | ![Classic Winamp skin](screenshots/now-playing-classic.jpg) | ![Music Taste genre radar](screenshots/music-taste.png) | ![Shazam-style recognition](screenshots/recognize.png) |
+> 5× speed — [watch the full walkthrough (mp4)](screenshots/demo.mp4)
+
+| Grid | Now Playing | Classic | Music Taste | Recognize |
+|---|---|---|---|---|
+| ![Liked-songs WebGL grid](screenshots/grid.jpg) | ![Now Playing with synced lyrics](screenshots/now-playing.jpg) | ![Classic Winamp skin](screenshots/now-playing-classic.jpg) | ![Music Taste genre radar](screenshots/music-taste.png) | ![Shazam-style recognition](screenshots/recognize.png) |
 
 ---
 
