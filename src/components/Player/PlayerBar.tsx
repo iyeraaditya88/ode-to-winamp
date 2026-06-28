@@ -10,6 +10,7 @@ import ProgressBar from './ProgressBar';
 import VolumeControl from './VolumeControl';
 import Equalizer from '@/components/Equalizer/Equalizer';
 import LyricsPanel from '@/components/Lyrics/LyricsPanel';
+import LikeButton from './LikeButton';
 import NowPlaying from './NowPlaying';
 
 const SHEET_SPRING = { type: 'spring', stiffness: 360, damping: 38 } as const;
@@ -167,8 +168,9 @@ export default function PlayerBar() {
               )}
             </div>
 
-            {/* Mobile-only compact transport (play/pause + next) */}
+            {/* Mobile-only compact transport (like + play/pause + next) */}
             <div className="flex sm:hidden items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+              <LikeButton track={currentTrack} size={18} className="px-1" />
               <button
                 onClick={() => setIsPlaying(!isPlaying)}
                 disabled={!currentTrack}
@@ -271,6 +273,8 @@ export default function PlayerBar() {
                   className="h-full w-full pointer-events-none"
                 />
               </button>
+
+              <LikeButton track={currentTrack} />
 
               <button
                 onClick={toggleLyrics}

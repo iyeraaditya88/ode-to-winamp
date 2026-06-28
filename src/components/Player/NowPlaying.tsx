@@ -13,6 +13,7 @@ import ProgressBar from './ProgressBar';
 import VolumeControl from './VolumeControl';
 import Equalizer from '@/components/Equalizer/Equalizer';
 import ClassicWinamp from './ClassicWinamp';
+import LikeButton from './LikeButton';
 
 function fmt(ms: number) {
   const s = Math.floor(ms / 1000);
@@ -195,6 +196,7 @@ export default function NowPlaying({ progress, onCollapse }: NowPlayingProps) {
               >
                 {classic ? 'NEO-CLASSIC' : 'CLASSIC'}
               </button>
+              <LikeButton track={currentTrack} showLabel size={15} />
               <button
                 onClick={() => share(currentTrack)}
                 disabled={!currentTrack}
