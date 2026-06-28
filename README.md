@@ -6,6 +6,18 @@ A custom, cinematic music player for your **Spotify** library — a phantom.land
 
 ---
 
+## Screenshots
+
+<!-- Drop images into ./screenshots (see screenshots/README.md) and they'll render here. -->
+
+| The grid | Now Playing | Music Taste |
+|---|---|---|
+| ![Liked-songs WebGL grid](screenshots/grid.png) | ![Now Playing with lyrics](screenshots/now-playing.png) | ![Music Taste radar](screenshots/music-taste.png) |
+
+> A short demo GIF (`screenshots/demo.gif`) is the best way to show off the grid — see `screenshots/README.md`.
+
+---
+
 ## Features
 
 - 🎛️ **WebGL liked‑songs grid** — an infinite, draggable, zoomable lens‑distortion "sphere" of your album art (inspired by [phantom.land](https://phantom.land)). Drag to pan, scroll/pinch to zoom, arrow keys to navigate, tap/Enter to play.

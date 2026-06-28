@@ -3,10 +3,6 @@ import { NextResponse } from 'next/server';
 const SCOPES = [
   'user-library-read',
   'user-library-modify',
-  'playlist-read-private',
-  'playlist-read-collaborative',
-  'playlist-modify-private',
-  'playlist-modify-public',
   'streaming',
   'user-read-playback-state',
   'user-modify-playback-state',
