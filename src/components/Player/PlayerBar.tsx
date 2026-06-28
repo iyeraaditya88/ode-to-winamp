@@ -30,6 +30,7 @@ export default function PlayerBar() {
     toggleShuffle,
     playNext,
     playPrev,
+    setShowNowPlaying,
   } = usePlayer();
 
   const { settings, update } = useEqualizerSettings();
@@ -47,12 +48,15 @@ export default function PlayerBar() {
   const openSheet = useCallback(() => {
     if (!currentTrack) return;
     setSheetMounted(true);
-    animate(sheetProgress, 1, SHEET_SPRING);
-  }, [sheetProgress, currentTrack]);
+    // Mark the grid as covered so its WebGL loop suspends (battery on mobile).
+    animate(sheetProgress, 1, { ...SHEET_SPRING, onComplete: () => setShowNowPlaying(true) });
+  }, [sheetProgress, currentTrack, setShowNowPlaying]);
 
   const closeSheet = useCallback(() => {
+    // Resume the grid immediately so it's live as the sheet slides away.
+    setShowNowPlaying(false);
     animate(sheetProgress, 0, { ...SHEET_SPRING, onComplete: () => setSheetMounted(false) });
-  }, [sheetProgress]);
+  }, [sheetProgress, setShowNowPlaying]);
 
   // Clicking the visualizer cycles its waveform type and colour together.
   const cycleVisualizer = () => {

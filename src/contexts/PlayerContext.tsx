@@ -25,6 +25,7 @@ interface PlayerActions {
   toggleLyrics: () => void;
   toggleEqualizer: () => void;
   toggleNowPlaying: () => void;
+  setShowNowPlaying: (v: boolean) => void;
   toggleShuffle: () => void;
   playTrack: (track: SpotifyTrack, context?: SpotifyTrack[]) => void;
   playNext: () => void;
@@ -421,9 +422,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
       let state = await p.getCurrentState();
       // Proactively rebuild the player on focus when the device looks dead (no
-      // state) or we were away a long time (e.g. overnight) — so the next play
-      // works without a manual reload.
-      if ((!state || hiddenMs > 5 * 60 * 1000) && recreatePlayerRef.current) {
+      // state) or we were away a long time — so the next play works without a
+      // manual reload. Mobile (esp. iOS PWA) suspends the page aggressively and
+      // Spotify drops the web device within ~30-60s, so use a much shorter
+      // "away too long" window on small screens.
+      const awayLimit = window.innerWidth < 640 ? 45 * 1000 : 5 * 60 * 1000;
+      if ((!state || hiddenMs > awayLimit) && recreatePlayerRef.current) {
         await recreatePlayerRef.current();
         state = (await playerRef.current?.getCurrentState()) ?? null;
       }
@@ -474,6 +478,127 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return q.slice(i + 1, i + 1 + 30);
   }, []);
 
+  // Play/pause with full mobile recovery. Shared by the UI controls AND the OS
+  // Media Session (lock screen / Control Center) handlers.
+  const togglePlay = useCallback(
+    async (v: boolean) => {
+      if (v) {
+        ensureActivated();
+        const state = await playerRef.current?.getCurrentState();
+        if (state) {
+          await playerRef.current?.resume();
+        } else {
+          // This device isn't the active audio output (audio is on another
+          // device, or it was dropped after backgrounding). Re-claim playback
+          // onto THIS device so sound actually comes through here.
+          const resumeHere = async () => {
+            const id = deviceIdRef.current;
+            if (!id) return null;
+            return fetch(`/api/spotify/play?device_id=${id}`, { method: 'PUT' }).catch(() => null);
+          };
+          let res = await resumeHere();
+          if (!res || !res.ok) {
+            await reconnectDevice();
+            res = await resumeHere();
+          }
+          if ((!res || !res.ok) && recreatePlayerRef.current) {
+            await recreatePlayerRef.current();
+            await resumeHere();
+          }
+        }
+      } else {
+        await playerRef.current?.pause();
+      }
+      setIsPlaying(v);
+    },
+    [ensureActivated, reconnectDevice]
+  );
+
+  const seekTo = useCallback(async (ms: number) => {
+    await playerRef.current?.seek(ms);
+    setPosition(ms);
+  }, []);
+
+  // Keep latest action fns reachable from the once-registered Media Session
+  // handlers without re-registering them on every render.
+  const mediaActions = useRef({ togglePlay, playNext, playPrev, seekTo });
+  useEffect(() => {
+    mediaActions.current = { togglePlay, playNext, playPrev, seekTo };
+  }, [togglePlay, playNext, playPrev, seekTo]);
+
+  // Register OS media controls once. This is what gives iOS/Android lock-screen
+  // + Control Center transport buttons, and — critically on iOS — lets the
+  // system treat our audio as an active media session (lock-screen resume).
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+    const ms = navigator.mediaSession;
+    const set = (action: MediaSessionAction, handler: (d: MediaSessionActionDetails) => void) => {
+      try {
+        ms.setActionHandler(action, handler);
+      } catch {
+        /* unsupported action — ignore */
+      }
+    };
+    set('play', () => mediaActions.current.togglePlay(true));
+    set('pause', () => mediaActions.current.togglePlay(false));
+    set('previoustrack', () => mediaActions.current.playPrev());
+    set('nexttrack', () => mediaActions.current.playNext());
+    set('seekto', (d) => {
+      if (d.seekTime != null) mediaActions.current.seekTo(d.seekTime * 1000);
+    });
+    return () => {
+      (['play', 'pause', 'previoustrack', 'nexttrack', 'seekto'] as MediaSessionAction[]).forEach((a) => {
+        try {
+          ms.setActionHandler(a, null);
+        } catch {
+          /* ignore */
+        }
+      });
+    };
+  }, []);
+
+  // Lock-screen metadata (title / artist / album art) follows the current track.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+    if (!currentTrack) {
+      navigator.mediaSession.metadata = null;
+      return;
+    }
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: currentTrack.name,
+      artist: currentTrack.artists.map((a) => a.name).join(', '),
+      album: currentTrack.album.name,
+      artwork: currentTrack.album.images
+        .filter((i) => i.url)
+        .map((i) => ({
+          src: i.url,
+          sizes: i.width && i.height ? `${i.width}x${i.height}` : '512x512',
+          type: 'image/jpeg',
+        })),
+    });
+  }, [currentTrack]);
+
+  // Reflect play/pause + scrubber position to the OS.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+  }, [isPlaying]);
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+    const ms = navigator.mediaSession;
+    if (typeof ms.setPositionState !== 'function' || duration <= 0) return;
+    try {
+      ms.setPositionState({
+        duration: duration / 1000,
+        position: Math.min(position, duration) / 1000,
+        playbackRate: 1,
+      });
+    } catch {
+      /* ignore out-of-range during track switches */
+    }
+  }, [position, duration]);
+
   const value: PlayerState & PlayerActions = {
     currentTrack,
     isPlaying,
@@ -487,41 +612,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     showLyrics,
     showEqualizer,
     showNowPlaying,
-    setIsPlaying: async (v) => {
-      if (v) {
-        ensureActivated();
-        const state = await playerRef.current?.getCurrentState();
-        if (state) {
-          await playerRef.current?.resume();
-        } else {
-          // This device isn't the active audio output (audio is on another
-          // device, or the device was dropped after backgrounding). Re-claim
-          // playback onto THIS device so sound actually comes through here.
-          const resumeHere = async () => {
-            const id = deviceIdRef.current;
-            if (!id) return null;
-            return fetch(`/api/spotify/play?device_id=${id}`, { method: 'PUT' }).catch(() => null);
-          };
-          let res = await resumeHere();
-          if (!res || !res.ok) {
-            await reconnectDevice();
-            res = await resumeHere();
-          }
-          if ((!res || !res.ok) && recreatePlayerRef.current) {
-            // Long-idle SDK breakage — rebuild the player and try once more.
-            await recreatePlayerRef.current();
-            await resumeHere();
-          }
-        }
-      } else {
-        await playerRef.current?.pause();
-      }
-      setIsPlaying(v);
-    },
-    setPosition: async (ms) => {
-      await playerRef.current?.seek(ms);
-      setPosition(ms);
-    },
+    setIsPlaying: togglePlay,
+    setPosition: seekTo,
     setVolume: async (v) => {
       await playerRef.current?.setVolume(v);
       setVolume(v);
@@ -529,6 +621,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     toggleLyrics: () => setShowLyrics((p) => !p),
     toggleEqualizer: () => setShowEqualizer((p) => !p),
     toggleNowPlaying: () => setShowNowPlaying((p) => !p),
+    setShowNowPlaying: (v) => setShowNowPlaying(v),
     toggleShuffle: () => setShuffle((p) => !p),
     playTrack,
     playNext,

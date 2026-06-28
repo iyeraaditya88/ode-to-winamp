@@ -442,12 +442,14 @@ interface PhantomGridProps {
   currentTrackId?: string;
   burst?: boolean;
   onReady?: () => void;
+  /** When true (e.g. full-screen Now Playing covers the grid) the WebGL render
+   *  loop is suspended to save GPU/battery on mobile. */
+  paused?: boolean;
 }
 
-export default function PhantomGrid({ songs, onPlay, currentTrackId, burst = true, onReady }: PhantomGridProps) {
-  const distortionRef = useRef(
-    typeof window !== 'undefined' && window.innerWidth < 640 ? 0.18 : 0.12
-  );
+export default function PhantomGrid({ songs, onPlay, currentTrackId, burst = true, onReady, paused = false }: PhantomGridProps) {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+  const distortionRef = useRef(isMobile ? 0.18 : 0.12);
   const [hint, setHint] = useState(true);
 
   useEffect(() => {
@@ -460,14 +462,19 @@ export default function PhantomGrid({ songs, onPlay, currentTrackId, burst = tru
   return (
     <div className="fixed inset-0 z-0 cursor-grab active:cursor-grabbing">
       <Canvas
+        // Suspend rendering entirely when the grid is hidden behind a full-screen
+        // panel — no point drawing 60fps of WebGL nobody can see.
+        frameloop={paused ? 'never' : 'always'}
         camera={{
-          position: [0, 0, typeof window !== 'undefined' && window.innerWidth < 640 ? 11.5 : 13.5],
+          position: [0, 0, isMobile ? 11.5 : 13.5],
           fov: 45,
           near: 0.1,
           far: 100,
         }}
-        gl={{ antialias: true, alpha: true }}
-        dpr={[1, 2]}
+        // Antialiasing + high DPR are the biggest mobile GPU costs; album tiles
+        // are small on phones, so cap DPR at 1.5 and drop MSAA there.
+        gl={{ antialias: !isMobile, alpha: true, powerPreference: 'high-performance' }}
+        dpr={isMobile ? [1, 1.5] : [1, 2]}
       >
         <color attach="background" args={['#080808']} />
         <GridScene
