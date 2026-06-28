@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react';
 import type { SpotifyTrack } from '@/types/spotify';
+import { useMediaSession } from '@/hooks/useMediaSession';
 
 interface PlayerState {
   currentTrack: SpotifyTrack | null;
@@ -519,85 +520,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setPosition(ms);
   }, []);
 
-  // Keep latest action fns reachable from the once-registered Media Session
-  // handlers without re-registering them on every render.
-  const mediaActions = useRef({ togglePlay, playNext, playPrev, seekTo });
-  useEffect(() => {
-    mediaActions.current = { togglePlay, playNext, playPrev, seekTo };
-  }, [togglePlay, playNext, playPrev, seekTo]);
-
-  // Register OS media controls once. This is what gives iOS/Android lock-screen
-  // + Control Center transport buttons, and — critically on iOS — lets the
-  // system treat our audio as an active media session (lock-screen resume).
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-    const ms = navigator.mediaSession;
-    const set = (action: MediaSessionAction, handler: (d: MediaSessionActionDetails) => void) => {
-      try {
-        ms.setActionHandler(action, handler);
-      } catch {
-        /* unsupported action — ignore */
-      }
-    };
-    set('play', () => mediaActions.current.togglePlay(true));
-    set('pause', () => mediaActions.current.togglePlay(false));
-    set('previoustrack', () => mediaActions.current.playPrev());
-    set('nexttrack', () => mediaActions.current.playNext());
-    set('seekto', (d) => {
-      if (d.seekTime != null) mediaActions.current.seekTo(d.seekTime * 1000);
-    });
-    return () => {
-      (['play', 'pause', 'previoustrack', 'nexttrack', 'seekto'] as MediaSessionAction[]).forEach((a) => {
-        try {
-          ms.setActionHandler(a, null);
-        } catch {
-          /* ignore */
-        }
-      });
-    };
-  }, []);
-
-  // Lock-screen metadata (title / artist / album art) follows the current track.
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-    if (!currentTrack) {
-      navigator.mediaSession.metadata = null;
-      return;
-    }
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: currentTrack.name,
-      artist: currentTrack.artists.map((a) => a.name).join(', '),
-      album: currentTrack.album.name,
-      artwork: currentTrack.album.images
-        .filter((i) => i.url)
-        .map((i) => ({
-          src: i.url,
-          sizes: i.width && i.height ? `${i.width}x${i.height}` : '512x512',
-          type: 'image/jpeg',
-        })),
-    });
-  }, [currentTrack]);
-
-  // Reflect play/pause + scrubber position to the OS.
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
-  }, [isPlaying]);
-
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-    const ms = navigator.mediaSession;
-    if (typeof ms.setPositionState !== 'function' || duration <= 0) return;
-    try {
-      ms.setPositionState({
-        duration: duration / 1000,
-        position: Math.min(position, duration) / 1000,
-        playbackRate: 1,
-      });
-    } catch {
-      /* ignore out-of-range during track switches */
-    }
-  }, [position, duration]);
+  // OS lock-screen / Control Center integration (extracted for clarity).
+  useMediaSession(
+    { currentTrack, isPlaying, position, duration },
+    { togglePlay, playNext, playPrev, seekTo }
+  );
 
   const value: PlayerState & PlayerActions = {
     currentTrack,

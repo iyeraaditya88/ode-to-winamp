@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useLikedSongs } from '@/hooks/useLikedSongs';
 import { useSearch } from '@/hooks/useSearch';
@@ -27,7 +27,12 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
   const [recognizeOpen, setRecognizeOpen] = useState(false);
   const [frozenSongs, setFrozenSongs] = useState<SpotifyTrack[] | null>(null);
 
-  const songs: SpotifyTrack[] = data?.pages.flatMap((p) => p.items.map((i) => i.track)) ?? [];
+  // Memoised so a stable array feeds the freeze effect + grid (avoids a fresh
+  // identity on every render churning dependent hooks).
+  const songs: SpotifyTrack[] = useMemo(
+    () => data?.pages.flatMap((p) => p.items.map((i) => i.track)) ?? [],
+    [data]
+  );
 
   // Freeze the tile pool once the library is loaded (or at burst, whichever is
   // first). The grid maps tiles via index % length, so a *growing* length would
@@ -59,15 +64,19 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
     return () => window.removeEventListener('keydown', onKey);
   }, [searchOpen]);
 
-  const handlePlay = (track: SpotifyTrack) => {
-    playTrack(track, gridSongs);
-  };
+  // Stable identity so the grid's pointer/keyboard listeners (which depend on
+  // onPlay) aren't torn down and re-added on every position-tick re-render.
+  const handlePlay = useCallback(
+    (track: SpotifyTrack) => playTrack(track, gridSongs),
+    [playTrack, gridSongs]
+  );
 
   // Playing from search queues the search results, so Next/Prev keep exploring
   // the results rather than jumping back to the liked-songs grid.
-  const handlePlaySearch = (track: SpotifyTrack) => {
-    playTrack(track, searchResults.length > 0 ? searchResults : [track]);
-  };
+  const handlePlaySearch = useCallback(
+    (track: SpotifyTrack) => playTrack(track, searchResults.length > 0 ? searchResults : [track]),
+    [playTrack, searchResults]
+  );
 
   const total = data?.pages[0]?.total ?? 0;
 

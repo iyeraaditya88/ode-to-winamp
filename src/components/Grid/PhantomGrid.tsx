@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useMemo, useEffect, useState, useCallback } from 'react';
+import { useRef, useMemo, useEffect, useState, useCallback, memo } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { EffectComposer } from '@react-three/postprocessing';
 import * as THREE from 'three';
@@ -575,7 +575,7 @@ interface PhantomGridProps {
   paused?: boolean;
 }
 
-export default function PhantomGrid({ songs, onPlay, currentTrackId, burst = true, onReady, paused = false }: PhantomGridProps) {
+function PhantomGrid({ songs, onPlay, currentTrackId, burst = true, onReady, paused = false }: PhantomGridProps) {
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
   const distortionRef = useRef(isMobile ? 0.18 : 0.12);
   const [hint, setHint] = useState(true);
@@ -627,3 +627,8 @@ export default function PhantomGrid({ songs, onPlay, currentTrackId, burst = tru
     </div>
   );
 }
+
+// Memoised so the player's ~2x/sec state ticks (position) don't re-run the grid
+// component — its props are referentially stable (songs frozen, callbacks
+// useCallback'd), so it only re-renders when they actually change.
+export default memo(PhantomGrid);
