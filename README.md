@@ -8,13 +8,11 @@ A custom, cinematic music player for your **Spotify** library — a phantom.land
 
 ## Screenshots
 
-<!-- Drop images into ./screenshots (see screenshots/README.md) and they'll render here. -->
+![Liked-songs WebGL grid](screenshots/grid.jpg)
 
-| The grid | Now Playing | Music Taste |
-|---|---|---|
-| ![Liked-songs WebGL grid](screenshots/grid.png) | ![Now Playing with lyrics](screenshots/now-playing.png) | ![Music Taste radar](screenshots/music-taste.png) |
-
-> A short demo GIF (`screenshots/demo.gif`) is the best way to show off the grid — see `screenshots/README.md`.
+| Now Playing | Classic (Winamp) | Music Taste | Recognize |
+|---|---|---|---|
+| ![Now Playing with synced lyrics](screenshots/now-playing.jpg) | ![Classic Winamp skin](screenshots/now-playing-classic.jpg) | ![Music Taste genre radar](screenshots/music-taste.png) | ![Shazam-style recognition](screenshots/recognize.png) |
 
 ---
 
