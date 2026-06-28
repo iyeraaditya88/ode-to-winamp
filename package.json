@@ -2,6 +2,21 @@
   "name": "ode-to-winamp",
   "version": "0.1.0",
   "private": true,
+  "description": "A cinematic, self-hosted music player for your Spotify library — a phantom.land-style WebGL grid with in-browser playback, synced lyrics, song recognition, and a Last.fm-powered Music Taste genre radar.",
+  "license": "MIT",
+  "author": "Aaditya Iyer",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iyeraaditya88/ode-to-winamp.git"
+  },
+  "keywords": [
+    "spotify",
+    "music-player",
+    "nextjs",
+    "webgl",
+    "react-three-fiber",
+    "pwa"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
