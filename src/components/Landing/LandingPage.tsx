@@ -12,6 +12,7 @@ import Logo from '@/components/Logo';
 import type { SpotifyTrack } from '@/types/spotify';
 
 const PhantomGrid = dynamic(() => import('@/components/Grid/PhantomGrid'), { ssr: false });
+const DebugOverlay = dynamic(() => import('@/components/Debug/DebugOverlay'), { ssr: false });
 
 const INITIAL_POOL = 150; // grid shows this for a snappy entrance, then upgrades to the full library
 
@@ -86,6 +87,7 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-[#080808]">
+      <DebugOverlay />
       {/* WebGL draggable sphere grid lives at z-0 behind everything */}
       {gridSongs.length > 0 && (
         <PhantomGrid

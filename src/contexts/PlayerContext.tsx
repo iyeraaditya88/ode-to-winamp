@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react';
 import type { SpotifyTrack } from '@/types/spotify';
 import { useMediaSession } from '@/hooks/useMediaSession';
+import { plog } from '@/lib/playerLog';
 
 interface PlayerState {
   currentTrack: SpotifyTrack | null;
@@ -76,13 +77,22 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // Mobile browsers block audio until the SDK's element is activated inside a
   // user gesture. Call this from the first tap that starts playback.
   const ensureActivated = useCallback(() => {
-    if (activatedRef.current) return;
+    if (activatedRef.current) {
+      plog('activate', 'skip (already activated)');
+      return;
+    }
     const p = playerRef.current as unknown as { activateElement?: () => Promise<void> } | null;
     if (p?.activateElement) {
       activatedRef.current = true;
-      p.activateElement().catch(() => {
-        activatedRef.current = false;
-      });
+      plog('activate', 'calling activateElement()');
+      p.activateElement()
+        .then(() => plog('activate', 'activateElement ok'))
+        .catch((e) => {
+          activatedRef.current = false;
+          plog('activate', `activateElement FAILED: ${String(e).slice(0, 80)}`);
+        });
+    } else {
+      plog('activate', `no activateElement (player=${!!playerRef.current})`);
     }
   }, []);
 
@@ -100,9 +110,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const reconnectDevice = useCallback(() => {
     return new Promise<void>((resolve) => {
       const p = playerRef.current;
-      if (!p) return resolve();
+      if (!p) {
+        plog('reconnect', 'no player');
+        return resolve();
+      }
       const seq = readySeqRef.current;
       reconnectingRef.current = true;
+      plog('reconnect', 'disconnect()+connect()');
       try {
         p.disconnect();
       } catch {
@@ -113,6 +127,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const tick = () => {
         if (readySeqRef.current > seq || Date.now() - start > 6000) {
           reconnectingRef.current = false;
+          plog('reconnect', readySeqRef.current > seq ? `fresh ready (${Date.now() - start}ms)` : 'TIMEOUT 6s, no ready');
           resolve();
         } else {
           setTimeout(tick, 150);
@@ -128,19 +143,24 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       lastPosRef.current = 0;
       lastPlayUriRef.current = uri;
       const startAt = Math.max(0, Math.round(positionMs));
+      plog('playUri', `pos=${startAt} dev=${deviceIdRef.current ? deviceIdRef.current.slice(0, 6) : 'none'}`);
 
-      const send = (devId: string) =>
-        fetch(`/api/spotify/play?device_id=${devId}`, {
+      const send = async (devId: string) => {
+        const res = await fetch(`/api/spotify/play?device_id=${devId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           // position_ms lets a resume-after-idle restart the track exactly where
           // it was paused, instead of from 0.
           body: JSON.stringify({ uris: [uri], position_ms: startAt }),
         });
+        plog('send', `dev=${devId.slice(0, 6)} -> ${res.status}${res.ok ? ' ok' : ''}`);
+        return res;
+      };
 
       const attempt = async (): Promise<boolean> => {
         let id = deviceIdRef.current;
         if (!id) {
+          plog('attempt', 'no device, reconnect first');
           await reconnectDevice();
           id = deviceIdRef.current;
         }
@@ -148,6 +168,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
         // Stale device after idle — re-register, then retry to beat the race
         // where Spotify hasn't accepted commands on the fresh device yet.
+        plog('attempt', 'first send failed -> reconnect + retry x3');
         await reconnectDevice();
         for (let i = 0; i < 3; i++) {
           const d = deviceIdRef.current;
@@ -158,6 +179,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
         // Still dead (long idle broke the SDK socket) — rebuild the player like
         // a reload would, then retry.
+        plog('attempt', 'still failing -> recreatePlayer + retry x2');
         if (recreatePlayerRef.current) {
           await recreatePlayerRef.current();
           for (let i = 0; i < 2; i++) {
@@ -167,6 +189,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             await new Promise((r) => setTimeout(r, 800));
           }
         }
+        plog('attempt', 'FAILED — no device accepted play');
         return false;
       };
 
@@ -179,23 +202,31 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       // A single early snapshot would false-positive on normal buffering and tear
       // down a play that was about to start — which showed up as the first play
       // briefly "playing" then pausing itself ~2s later.
+      plog('playUri', `attempt -> ${ok ? 'ok' : 'FAILED'}`);
       if (ok) {
         void (async () => {
           let progressed = false;
           for (let i = 0; i < 4; i++) {
             await new Promise((r) => setTimeout(r, 900));
-            if (lastPlayUriRef.current !== uri) return; // user moved on
+            if (lastPlayUriRef.current !== uri) {
+              plog('verify', 'aborted (user moved on)');
+              return; // user moved on
+            }
             const st = await playerRef.current?.getCurrentState();
+            plog('verify', `#${i} paused=${st?.paused ?? 'null'} pos=${st?.position ?? '-'} (need >${startAt + 250})`);
             if (st && !st.paused && st.position > startAt + 250) {
               progressed = true;
               break;
             }
           }
           if (!progressed && lastPlayUriRef.current === uri && recreatePlayerRef.current) {
+            plog('verify', 'NO progress -> recreate + replay (this is the self-pause)');
             await recreatePlayerRef.current();
             if (lastPlayUriRef.current !== uri) return;
             const d = deviceIdRef.current;
             if (d) send(d).catch(() => {});
+          } else {
+            plog('verify', progressed ? 'progress confirmed, audio playing' : 'skipped recreate');
           }
         })();
       }
@@ -256,14 +287,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { playNextRef.current = playNext; }, [playNext]);
 
   const initPlayer = useCallback(async () => {
-    if (initialized.current) return;
+    if (initialized.current) {
+      plog('initPlayer', 'skip (already initialized)');
+      return;
+    }
     initialized.current = true;
+    plog('initPlayer', 'start');
 
     const { token } = await fetch('/api/auth/token').then((r) => r.json()).catch(() => ({ token: null }));
     if (!token) {
       // Transient token failure — DON'T leave the latch set, or init never
       // retries and the UI is wedged on "Initializing player" forever.
       initialized.current = false;
+      plog('initPlayer', 'NO TOKEN -> error reconnect');
       setPlayerError('reconnect');
       return;
     }
@@ -278,13 +314,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     });
 
     player.addListener('ready', ({ device_id }: { device_id: string }) => {
+      plog('sdk:ready', device_id.slice(0, 6));
       setDeviceId(device_id);
       deviceIdRef.current = device_id;
       readySeqRef.current += 1;
       setPlayerError(null);
     });
 
-    player.addListener('not_ready', () => {
+    player.addListener('not_ready', ({ device_id }: { device_id: string }) => {
+      plog('sdk:not_ready', `${device_id?.slice(0, 6)} reconn=${reconnectingRef.current} recr=${recreatingRef.current}`);
       // Spotify dropped the device (idle timeout / network). Re-register it so
       // the next play doesn't hit a dead device — unless a manual reconnect or a
       // full re-create is already in flight (avoid fighting / zombie players).
@@ -296,10 +334,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (!state) {
         // A null state means another device took over playback — this device is
         // no longer the active output, so stop showing "playing".
+        plog('sdk:state', 'NULL (device not active output)');
         setIsPlaying(false);
         return;
       }
       const sdkTrack = state.track_window.current_track;
+      plog('sdk:state', `paused=${state.paused} pos=${state.position} "${sdkTrack.name?.slice(0, 20)}"`);
       setIsPlaying(!state.paused);
       setPosition(state.position);
       setDuration(state.duration);
@@ -340,21 +380,25 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     });
 
     player.addListener('account_error', ({ message }: { message: string }) => {
+      plog('sdk:account_error', message?.slice(0, 80));
       console.error('Spotify account error (Premium required):', message);
       setPlayerError('Spotify Premium is required for playback.');
     });
     player.addListener('initialization_error', ({ message }: { message: string }) => {
+      plog('sdk:init_error', message?.slice(0, 80));
       console.error('Spotify init error:', message);
       setPlayerError("This browser can't initialize the player.");
     });
     player.addListener('authentication_error', ({ message }: { message: string }) => {
+      plog('sdk:auth_error', message?.slice(0, 80));
       console.error('Spotify auth error:', message);
       // Let the next init re-create the player with a fresh token.
       initialized.current = false;
       setPlayerError('reconnect');
     });
 
-    await player.connect();
+    const connected = await player.connect();
+    plog('initPlayer', `connect() -> ${connected}`);
     playerRef.current = player;
   }, []);
 
@@ -365,6 +409,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // re-initialises that global state: a reload without reloading.
   const reloadSdkScript = useCallback(() => {
     return new Promise<void>((resolve) => {
+      plog('reloadSdk', 'removing script + window.Spotify, re-injecting');
       document.getElementById('spotify-player-sdk')?.remove();
       // Drop the stale global so the re-injected script fully re-initialises
       // (and so any double-load guard inside the SDK doesn't short-circuit).
@@ -374,9 +419,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         (window as unknown as { Spotify?: unknown }).Spotify = undefined;
       }
       let done = false;
+      const start = Date.now();
       const finish = () => {
         if (done) return;
         done = true;
+        plog('reloadSdk', `SDK ready (${Date.now() - start}ms)`);
         resolve();
       };
       // The SDK calls this once it has redefined window.Spotify.
@@ -398,6 +445,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // reload the SDK script, then build a fresh player: a reload without reloading.
   const recreatePlayer = useCallback(async () => {
     if (recreatingRef.current) {
+      plog('recreate', 'already in flight, waiting');
       const s = Date.now();
       while (recreatingRef.current && Date.now() - s < 14000) {
         await new Promise((r) => setTimeout(r, 150));
@@ -405,6 +453,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     recreatingRef.current = true;
+    plog('recreate', 'START (full SDK reload + rebuild)');
     try {
       try {
         playerRef.current?.disconnect();
@@ -429,6 +478,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       while (!deviceIdRef.current && Date.now() - start < 10000) {
         await new Promise((r) => setTimeout(r, 150));
       }
+      plog('recreate', deviceIdRef.current ? `END device=${String(deviceIdRef.current).slice(0, 6)} (${Date.now() - start}ms)` : 'END NO DEVICE (timeout 10s)');
       // Force the NEXT play gesture to re-activate audio on this fresh player.
       // Crucially, do NOT activate here: a rebuild often runs off-gesture (the
       // proactive foreground resync, the watchdog), where activateElement won't
@@ -546,6 +596,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const markHidden = () => {
       hiddenAtRef.current = Date.now();
       activatedRef.current = false;
+      plog('hidden', 'backgrounded; activation latch reset');
     };
 
     const resync = async () => {
@@ -555,14 +606,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       const p = playerRef.current;
-      if (!p) return;
+      if (!p) {
+        plog('resync', 'foreground but NO player');
+        return;
+      }
       const hiddenMs = hiddenAtRef.current ? Date.now() - hiddenAtRef.current : 0;
       hiddenAtRef.current = 0;
 
       let state = await p.getCurrentState();
       const awayLimit = window.innerWidth < 640 ? 45 * 1000 : 5 * 60 * 1000;
+      plog('resync', `foreground hiddenMs=${hiddenMs} away=${awayLimit} state=${state ? `paused=${state.paused}` : 'null'}`);
       if (!reconnectingRef.current && !recreatingRef.current) {
         if (hiddenMs > awayLimit && recreatePlayerRef.current) {
+          plog('resync', 'long idle -> proactive recreate');
           // After a long idle the web device is almost always stale — and a
           // PAUSED device returns a zombie state object, so getCurrentState can't
           // tell us it's dead (this is why pausing-then-backgrounding wedged the
@@ -573,6 +629,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           await recreatePlayerRef.current();
           state = (await playerRef.current?.getCurrentState()) ?? null;
         } else if (!state) {
+          plog('resync', 'short idle, no state -> reconnect');
           // Short idle but no live state (audio moved to another device) — a
           // cheap, non-destructive reconnect is enough and keeps deviceId visible.
           await reconnectDevice();
@@ -638,8 +695,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       // this guard every impatient tap during that window started ANOTHER toggle
       // and flipped the intended state, so they all resolved into a
       // play→pause→play flicker. Ignore taps until the in-flight one settles.
-      if (toggleBusyRef.current) return;
+      if (toggleBusyRef.current) {
+        plog('toggle', `v=${v} IGNORED (busy)`);
+        return;
+      }
       toggleBusyRef.current = true;
+      plog('toggle', `v=${v} dev=${deviceIdRef.current ? deviceIdRef.current.slice(0, 6) : 'none'} activated=${activatedRef.current}`);
       // Reflect the intent on the button immediately so the tap visibly registers
       // (and the user isn't tempted to keep mashing during recovery).
       setIsPlaying(v);
@@ -649,11 +710,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           const state = await playerRef.current?.getCurrentState();
           // Capture the paused position BEFORE any recovery clears it.
           const resumeAt = lastPosRef.current;
+          plog('toggle', `getCurrentState -> ${state ? `paused=${state.paused} pos=${state.position}` : 'null'}`);
           if (state && !state.paused) {
             // Already actually playing on this device — nothing to do.
+            plog('toggle', 'already playing');
           } else if (state) {
             // Live device with the track still loaded (short background) — a plain
             // resume works and keeps the exact position.
+            plog('toggle', 'resume() on live device');
             await playerRef.current?.resume();
           } else {
             // No live state: the web device was dropped while backgrounded. Do NOT
@@ -662,6 +726,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             // track at its last position through playUri, which carries the full
             // device-recovery ladder (reconnect → rebuild) and actually starts audio.
             const track = currentTrackRef.current;
+            plog('toggle', `no state -> replay via playUri (track=${!!track})`);
             if (track) {
               await playUri(track.uri, resumeAt);
             } else {
@@ -669,6 +734,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             }
           }
         } else {
+          plog('toggle', 'pause()');
           await playerRef.current?.pause();
         }
       } finally {
