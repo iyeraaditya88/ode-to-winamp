@@ -192,15 +192,29 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     [reconnectDevice]
   );
 
+  // Reflect the selected track in the UI immediately, before the SDK round-trips
+  // and fires player_state_changed. The art/title, reset progress bar and lyrics
+  // fetch all light up on tap instead of after the network + buffer delay, so
+  // playback *feels* instant even while Spotify is still loading the audio. The
+  // real state_changed reconciles these moments later.
+  const showTrackOptimistically = useCallback((track: SpotifyTrack) => {
+    setCurrentTrack(track);
+    setIsPlaying(true);
+    setPosition(0);
+    setDuration(track.duration_ms);
+    lastPosRef.current = 0;
+  }, []);
+
   const playIndex = useCallback(
     (i: number) => {
       const q = queueRef.current;
       if (i < 0 || i >= q.length) return;
       setCurrentIndex(i);
       indexRef.current = i;
+      showTrackOptimistically(q[i]);
       playUri(q[i].uri);
     },
-    [playUri]
+    [playUri, showTrackOptimistically]
   );
 
   const playNext = useCallback(() => {
@@ -594,6 +608,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const finalIdx = idx >= 0 ? idx : 0;
       setCurrentIndex(finalIdx);
       indexRef.current = finalIdx;
+      showTrackOptimistically(track);
       playUri(track.uri);
       // Auto-open the side lyrics panel when a song starts (desktop only — on
       // mobile the side panel would cover the screen; lyrics live in Now Playing).
@@ -601,7 +616,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setShowLyrics(true);
       }
     },
-    [playUri, ensureActivated]
+    [playUri, ensureActivated, showTrackOptimistically]
   );
 
   const upcoming = useCallback(() => {
