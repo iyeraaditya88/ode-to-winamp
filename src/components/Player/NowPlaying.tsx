@@ -8,6 +8,7 @@ import { useLyrics } from '@/hooks/useLyrics';
 import { useShareTrack } from '@/hooks/useShareTrack';
 import { useRomanize } from '@/hooks/useRomanize';
 import { hasNonLatin } from '@/lib/romanize';
+import { scrollLineIntoView } from '@/lib/scrollLine';
 import { useEqualizerSettings, EQ_THEMES, EQ_STYLES } from '@/hooks/useEqualizerSettings';
 import ProgressBar from './ProgressBar';
 import VolumeControl from './VolumeControl';
@@ -62,7 +63,7 @@ export default function NowPlaying({ progress, onCollapse }: NowPlayingProps) {
 
   useEffect(() => {
     if (hasSynced && activeRef.current) {
-      activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      scrollLineIntoView(activeRef.current);
     }
   }, [currentLineIndex, hasSynced]);
 

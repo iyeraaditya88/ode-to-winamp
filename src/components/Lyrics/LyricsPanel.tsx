@@ -5,6 +5,7 @@ import { m, AnimatePresence } from 'framer-motion';
 import { useLyrics } from '@/hooks/useLyrics';
 import { useRomanize } from '@/hooks/useRomanize';
 import { hasNonLatin } from '@/lib/romanize';
+import { scrollLineIntoView } from '@/lib/scrollLine';
 import type { SpotifyTrack } from '@/types/spotify';
 
 interface LyricsPanelProps {
@@ -25,7 +26,7 @@ export default function LyricsPanel({ isOpen, onClose, track, positionMs }: Lyri
 
   useEffect(() => {
     if (hasSynced && activeRef.current) {
-      activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      scrollLineIntoView(activeRef.current);
     }
   }, [currentLineIndex, hasSynced]);
 
