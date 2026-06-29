@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFreshAccessToken } from '@/lib/auth';
 
+// Run at the edge POP nearest the listener instead of a single US region, so the
+// client→function hop on the hot playback path is ~30ms instead of a cross-
+// continent round-trip on every play. The function→Spotify hop and Spotify's own
+// buffering still apply, but this removes the avoidable geographic latency.
+export const runtime = 'edge';
+
 export async function PUT(request: NextRequest) {
   const token = await getFreshAccessToken();
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

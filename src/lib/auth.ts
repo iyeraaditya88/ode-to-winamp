@@ -6,6 +6,16 @@ const COOKIE_ACCESS = 'sp_access_token';
 const COOKIE_REFRESH = 'sp_refresh_token';
 const COOKIE_EXPIRES = 'sp_expires_at';
 
+// Base64 the client credentials for the Basic auth header. btoa exists on the
+// Edge runtime (and browsers); Buffer only on Node. Support both so this helper
+// works whether the calling route runs on Edge or Node. The credentials are
+// ASCII, so btoa is safe here.
+function basicAuthHeader(): string {
+  const creds = `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`;
+  const b64 = typeof btoa === 'function' ? btoa(creds) : Buffer.from(creds).toString('base64');
+  return `Basic ${b64}`;
+}
+
 export function getTokensFromCookies() {
   const store = cookies();
   return {
@@ -24,9 +34,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<SpotifyT
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Basic ${Buffer.from(
-        `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
-      ).toString('base64')}`,
+      Authorization: basicAuthHeader(),
     },
     body: new URLSearchParams({
       grant_type: 'refresh_token',
