@@ -71,6 +71,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const hiddenAtRef = useRef(0); // timestamp the tab was last hidden (for focus recovery)
   const activatedRef = useRef(false);
   const deviceLessSinceRef = useRef(0); // when we entered a device-less state — absolute watchdog deadline
+  const toggleBusyRef = useRef(false); // a play/pause toggle is resolving — coalesce stacked taps
 
   // Mobile browsers block audio until the SDK's element is activated inside a
   // user gesture. Call this from the first tap that starts playback.
@@ -550,28 +551,22 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       hiddenAtRef.current = 0;
 
       let state = await p.getCurrentState();
-      // After a long idle the web device is usually dropped. First try the cheap,
-      // NON-destructive recovery: disconnect()+connect() on the existing player
-      // re-registers the device while keeping the cached deviceId visible (no
-      // "Initializing…" flash).
       const awayLimit = window.innerWidth < 640 ? 45 * 1000 : 5 * 60 * 1000;
-      if (
-        (!state || hiddenMs > awayLimit) &&
-        !reconnectingRef.current &&
-        !recreatingRef.current
-      ) {
-        await reconnectDevice();
-        state = (await playerRef.current?.getCurrentState()) ?? null;
-
-        // If a LONG idle left the device truly dead — reconnect couldn't revive
-        // the SDK socket, so there's still no live state — rebuild the player
-        // proactively NOW, while the user is looking at the UI. That way a fresh,
-        // ready device exists BEFORE they tap play, so the tap can unlock audio
-        // in-gesture instead of racing a multi-second rebuild (which on iOS
-        // outlives the gesture's audio-activation window → silent playback). The
-        // starvation-proof watchdog covers the case where this rebuild is slow.
-        if (!state && hiddenMs > awayLimit && recreatePlayerRef.current) {
+      if (!reconnectingRef.current && !recreatingRef.current) {
+        if (hiddenMs > awayLimit && recreatePlayerRef.current) {
+          // After a long idle the web device is almost always stale — and a
+          // PAUSED device returns a zombie state object, so getCurrentState can't
+          // tell us it's dead (this is why pausing-then-backgrounding wedged the
+          // next play for ~5s). Don't trust the state: rebuild proactively NOW
+          // (full SDK reload) while the user is orienting to the screen, so the
+          // next play tap hits a fresh, ready device instead of paying the
+          // multi-second recovery itself.
           await recreatePlayerRef.current();
+          state = (await playerRef.current?.getCurrentState()) ?? null;
+        } else if (!state) {
+          // Short idle but no live state (audio moved to another device) — a
+          // cheap, non-destructive reconnect is enough and keeps deviceId visible.
+          await reconnectDevice();
           state = (await playerRef.current?.getCurrentState()) ?? null;
         }
       }
@@ -630,35 +625,46 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // Media Session (lock screen / Control Center) handlers.
   const togglePlay = useCallback(
     async (v: boolean) => {
-      if (v) {
-        ensureActivated();
-        const state = await playerRef.current?.getCurrentState();
-        // Capture the paused position BEFORE any recovery clears it.
-        const resumeAt = lastPosRef.current;
-        if (state && !state.paused) {
-          // Already actually playing on this device — nothing to do.
-        } else if (state) {
-          // Live device with the track still loaded (short background) — a plain
-          // resume works and keeps the exact position.
-          await playerRef.current?.resume();
-        } else {
-          // No live state: the web device was dropped while backgrounded. Do NOT
-          // bodyless-"resume" — after a long idle Spotify has discarded the paused
-          // session, so resume hits a dead/empty context. Re-play the current
-          // track at its last position through playUri, which carries the full
-          // device-recovery ladder (reconnect → rebuild) and actually starts audio.
-          const track = currentTrackRef.current;
-          if (track) {
-            await playUri(track.uri, resumeAt);
-          } else {
-            setIsPlaying(false);
-            return;
-          }
-        }
-      } else {
-        await playerRef.current?.pause();
-      }
+      // Coalesce rapid taps. A post-idle play can take seconds to recover; without
+      // this guard every impatient tap during that window started ANOTHER toggle
+      // and flipped the intended state, so they all resolved into a
+      // play→pause→play flicker. Ignore taps until the in-flight one settles.
+      if (toggleBusyRef.current) return;
+      toggleBusyRef.current = true;
+      // Reflect the intent on the button immediately so the tap visibly registers
+      // (and the user isn't tempted to keep mashing during recovery).
       setIsPlaying(v);
+      try {
+        if (v) {
+          ensureActivated();
+          const state = await playerRef.current?.getCurrentState();
+          // Capture the paused position BEFORE any recovery clears it.
+          const resumeAt = lastPosRef.current;
+          if (state && !state.paused) {
+            // Already actually playing on this device — nothing to do.
+          } else if (state) {
+            // Live device with the track still loaded (short background) — a plain
+            // resume works and keeps the exact position.
+            await playerRef.current?.resume();
+          } else {
+            // No live state: the web device was dropped while backgrounded. Do NOT
+            // bodyless-"resume" — after a long idle Spotify has discarded the paused
+            // session, so resume hits a dead/empty context. Re-play the current
+            // track at its last position through playUri, which carries the full
+            // device-recovery ladder (reconnect → rebuild) and actually starts audio.
+            const track = currentTrackRef.current;
+            if (track) {
+              await playUri(track.uri, resumeAt);
+            } else {
+              setIsPlaying(false);
+            }
+          }
+        } else {
+          await playerRef.current?.pause();
+        }
+      } finally {
+        toggleBusyRef.current = false;
+      }
     },
     [ensureActivated, playUri]
   );
