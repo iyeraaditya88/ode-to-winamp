@@ -17,7 +17,14 @@ function posMod(n: number, m: number) {
   return ((n % m) + m) % m;
 }
 
-/** Shared, lazily-populated album-art texture cache. */
+// Cap the album-art cache so a long pan across a big library can't grow VRAM
+// without bound (640px textures are ~4.5× the bytes of 300px). The recycled tile
+// pool maxes out around ~110 tiles, and eviction only fires while panning — which
+// re-touches every on-screen tile first — so the least-recently-used victim is
+// always off-screen art, safe to dispose.
+const TEXTURE_CACHE_CAP = 200;
+
+/** Shared, lazily-populated album-art texture cache (LRU-bounded). */
 function useTextureCache() {
   const cache = useRef(new Map<string, THREE.Texture>());
   const loader = useMemo(() => {
@@ -29,14 +36,31 @@ function useTextureCache() {
   const get = useCallback(
     (url: string | undefined): THREE.Texture | null => {
       if (!url) return null;
-      const existing = cache.current.get(url);
-      if (existing) return existing;
+      const c = cache.current;
+      const existing = c.get(url);
+      if (existing) {
+        // Re-insert to mark most-recently-used (Map preserves insertion order).
+        c.delete(url);
+        c.set(url, existing);
+        return existing;
+      }
       const tex = loader.load(url, (t) => {
         t.colorSpace = THREE.SRGBColorSpace;
         t.needsUpdate = true;
       });
       tex.colorSpace = THREE.SRGBColorSpace;
-      cache.current.set(url, tex);
+      // Anisotropic filtering keeps art crisp where the lens distortion tilts and
+      // minifies tiles — a big sharpness win for ~no cost (three clamps the value
+      // to the GPU's max). Without it, the default anisotropy=1 leaves tiles soft.
+      tex.anisotropy = 16;
+      c.set(url, tex);
+      if (c.size > TEXTURE_CACHE_CAP) {
+        const oldest = c.keys().next().value as string | undefined;
+        if (oldest !== undefined) {
+          c.get(oldest)?.dispose();
+          c.delete(oldest);
+        }
+      }
       return tex;
     },
     [loader]
@@ -501,8 +525,14 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
       if (content !== t.contentIndex) {
         t.contentIndex = content;
         const track = songs[content];
-        const url =
-          track?.album.images[1]?.url ?? track?.album.images[0]?.url ?? track?.album.images[2]?.url;
+        // Spotify orders images largest-first (640 → 300 → 64). Desktop tiles are
+        // large and rendered at up to DPR 2, so use the 640px art; phones have
+        // small, dense tiles and tighter VRAM, so the 300px stays sharp enough
+        // while saving memory + bandwidth.
+        const imgs = track?.album.images;
+        const url = isMobile
+          ? imgs?.[1]?.url ?? imgs?.[0]?.url ?? imgs?.[2]?.url
+          : imgs?.[0]?.url ?? imgs?.[1]?.url ?? imgs?.[2]?.url;
         const tex = getTexture(url) ?? placeholder;
         if (tex !== t.material.map) {
           t.material.map = tex;
