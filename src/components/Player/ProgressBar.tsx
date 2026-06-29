@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 function formatTime(ms: number) {
   const s = Math.floor(ms / 1000);
@@ -14,15 +14,43 @@ interface ProgressBarProps {
 }
 
 export default function ProgressBar({ position, duration, onSeek }: ProgressBarProps) {
+  const hitRef = useRef<HTMLDivElement>(null);
   const [seeking, setSeeking] = useState(false);
-  const [seekValue, setSeekValue] = useState(0);
+  const [seekValue, setSeekValue] = useState(0); // 0..1 while dragging
 
-  const progress = duration > 0 ? (seeking ? seekValue : position / duration) * 100 : 0;
+  const fraction = duration > 0 ? (seeking ? seekValue : position / duration) : 0;
+  const progress = Math.min(1, Math.max(0, fraction)) * 100;
 
-  // Commit a seek from the raw 0–100 slider value (works for mouse + touch).
-  const commit = (raw: number) => {
+  // Map a pointer's clientX onto a 0..1 fraction of the bar's width.
+  const fractionFromClientX = (clientX: number) => {
+    const el = hitRef.current;
+    if (!el) return 0;
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0) return 0;
+    return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  };
+
+  // A custom pointer-driven slider (instead of <input type="range">): native
+  // range inputs only reliably tap-to-jump on touch — a drag that starts off the
+  // thumb often never fires. Capturing the pointer lets the drag track the finger
+  // from anywhere on the bar, even if it strays vertically off the 4px track.
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (duration <= 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setSeeking(true);
+    setSeekValue(fractionFromClientX(e.clientX));
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!seeking) return;
+    setSeekValue(fractionFromClientX(e.clientX));
+  };
+
+  const commit = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!seeking) return;
+    const f = fractionFromClientX(e.clientX);
     setSeeking(false);
-    onSeek(Math.round((raw / 100) * duration));
+    onSeek(Math.round(f * duration));
   };
 
   return (
@@ -31,30 +59,32 @@ export default function ProgressBar({ position, duration, onSeek }: ProgressBarP
         {formatTime(seeking ? seekValue * duration : position)}
       </span>
       <div className="relative flex-1 h-1 group">
-        <div className="absolute inset-y-0 w-full rounded-full bg-white/10" />
+        <div className="absolute inset-y-0 left-0 w-full rounded-full bg-white/10" />
         <div
-          className="absolute inset-y-0 rounded-full bg-white/60 group-hover:bg-[#00b4b4] transition-colors"
+          className="absolute inset-y-0 left-0 rounded-full bg-white/60 group-hover:bg-[#00b4b4] transition-colors"
           style={{ width: `${progress}%` }}
         />
-        <input
-          type="range"
-          min={0}
-          max={100}
-          step={0.01}
-          value={seeking ? seekValue * 100 : progress}
-          // Pointer events cover both mouse and touch; touch-action:none keeps the
-          // horizontal drag from being hijacked into a scroll on mobile.
-          onPointerDown={() => {
-            setSeeking(true);
-            setSeekValue(progress / 100);
-          }}
-          onChange={(e) => setSeekValue(Number(e.target.value) / 100)}
-          onPointerUp={(e) => commit(Number((e.target as HTMLInputElement).value))}
-          onPointerCancel={(e) => commit(Number((e.target as HTMLInputElement).value))}
+        {/* Thumb — purely visual; the hit layer below handles all input. */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-white shadow pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ left: `${progress}%`, opacity: seeking ? 1 : undefined }}
+        />
+        {/* Interactive hit layer — extends well beyond the 4px bar so it's easy
+            to grab on touch. touch-action:none stops the horizontal drag from
+            being hijacked into a page scroll. */}
+        <div
+          ref={hitRef}
+          role="slider"
+          aria-label="Seek"
+          aria-valuemin={0}
+          aria-valuemax={Math.round(duration)}
+          aria-valuenow={Math.round(fraction * duration)}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={commit}
+          onPointerCancel={commit}
           style={{ touchAction: 'none' }}
-          // Extend the (invisible) hit area well beyond the 4px bar so it's
-          // easy to grab on touch.
-          className="absolute -inset-y-3 inset-x-0 opacity-0 cursor-pointer"
+          className="absolute -inset-y-3 inset-x-0 cursor-pointer"
         />
       </div>
       <span className="text-[10px] text-white/55 font-mono w-8 shrink-0">
