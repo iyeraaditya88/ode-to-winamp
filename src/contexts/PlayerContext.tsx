@@ -109,6 +109,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // Spotify removed the device server-side. disconnect() then connect() does.
   const reconnectDevice = useCallback(() => {
     return new Promise<void>((resolve) => {
+      if (recreatingRef.current) {
+        // A full rebuild is in flight — don't disconnect()/connect() the player
+        // it's building, or we double-register the device and fire duplicate
+        // ready/state events. The rebuild will produce a fresh ready device.
+        plog('reconnect', 'skip (recreate in flight)');
+        return resolve();
+      }
       const p = playerRef.current;
       if (!p) {
         plog('reconnect', 'no player');
@@ -158,6 +165,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       };
 
       const attempt = async (): Promise<boolean> => {
+        // If a rebuild is already in flight (the proactive foreground recreate),
+        // WAIT for it and use its fresh device — don't race a second recovery.
+        // Racing caused concurrent connect()s, a double-registered device, and a
+        // slow ~3s "UI playing but silent" gap after returning from background.
+        if (recreatingRef.current) {
+          plog('attempt', 'recreate in flight — waiting for it');
+          const s = Date.now();
+          while (recreatingRef.current && Date.now() - s < 12000) {
+            await new Promise((r) => setTimeout(r, 100));
+          }
+          plog('attempt', `recreate done, dev=${deviceIdRef.current ? deviceIdRef.current.slice(0, 6) : 'none'}`);
+        }
+
         let id = deviceIdRef.current;
         if (!id) {
           plog('attempt', 'no device, reconnect first');
