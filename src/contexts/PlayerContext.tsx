@@ -173,21 +173,31 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const ok = await attempt();
 
       // The request can succeed against a "zombie" device (registered server-side
-      // but with dead local audio after a very long idle) — UI shows playing but
-      // there's no sound. Verify a moment later; if nothing actually started,
-      // rebuild the player and replay once.
+      // but with dead local audio after a very long idle) — the SDK may even
+      // report "playing" while no sound comes out. Confirm a REAL start by
+      // watching the position ADVANCE past the start point over a short window.
+      // A single early snapshot would false-positive on normal buffering and tear
+      // down a play that was about to start — which showed up as the first play
+      // briefly "playing" then pausing itself ~2s later.
       if (ok) {
-        setTimeout(async () => {
-          if (lastPlayUriRef.current !== uri) return; // user moved on
-          const st = await playerRef.current?.getCurrentState();
-          const failed = !st || (st.paused && st.position < 500);
-          if (failed && recreatePlayerRef.current) {
+        void (async () => {
+          let progressed = false;
+          for (let i = 0; i < 4; i++) {
+            await new Promise((r) => setTimeout(r, 900));
+            if (lastPlayUriRef.current !== uri) return; // user moved on
+            const st = await playerRef.current?.getCurrentState();
+            if (st && !st.paused && st.position > startAt + 250) {
+              progressed = true;
+              break;
+            }
+          }
+          if (!progressed && lastPlayUriRef.current === uri && recreatePlayerRef.current) {
             await recreatePlayerRef.current();
             if (lastPlayUriRef.current !== uri) return;
             const d = deviceIdRef.current;
             if (d) send(d).catch(() => {});
           }
-        }, 1500);
+        })();
       }
     },
     [reconnectDevice]
@@ -419,18 +429,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       while (!deviceIdRef.current && Date.now() - start < 10000) {
         await new Promise((r) => setTimeout(r, 150));
       }
-      // Re-arm audio on the freshly built player. A rebuild is normally
-      // triggered from a play tap, so iOS still has transient user-activation
-      // here — without this, the new audio element is never unlocked and
-      // playback is silent even though the UI shows "playing".
-      if (deviceIdRef.current) {
-        activatedRef.current = false;
-        ensureActivated();
-      }
+      // Force the NEXT play gesture to re-activate audio on this fresh player.
+      // Crucially, do NOT activate here: a rebuild often runs off-gesture (the
+      // proactive foreground resync, the watchdog), where activateElement won't
+      // truly unlock audio on mobile but WOULD mark us "activated" — causing the
+      // real user tap to skip activation and play silently. Let the tap's
+      // ensureActivated() unlock it inside a genuine gesture.
+      activatedRef.current = false;
     } finally {
       recreatingRef.current = false;
     }
-  }, [initPlayer, ensureActivated, reloadSdkScript]);
+  }, [initPlayer, reloadSdkScript]);
 
   recreatePlayerRef.current = recreatePlayer;
 
