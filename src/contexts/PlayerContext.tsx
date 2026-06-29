@@ -85,10 +85,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const currentTrackRef = useRef<SpotifyTrack | null>(null);
   useEffect(() => { queueRef.current = queue; }, [queue]);
   useEffect(() => { indexRef.current = currentIndex; }, [currentIndex]);
   useEffect(() => { shuffleRef.current = shuffle; }, [shuffle]);
   useEffect(() => { deviceIdRef.current = deviceId; }, [deviceId]);
+  useEffect(() => { currentTrackRef.current = currentTrack; }, [currentTrack]);
 
   // Spotify drops idle web-playback devices after a while, leaving the cached
   // device_id stale. Force a FULL re-register — connect() alone often doesn't
@@ -120,16 +122,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const playUri = useCallback(
-    async (uri: string) => {
+    async (uri: string, positionMs = 0) => {
       advancingRef.current = false;
       lastPosRef.current = 0;
       lastPlayUriRef.current = uri;
+      const startAt = Math.max(0, Math.round(positionMs));
 
       const send = (devId: string) =>
         fetch(`/api/spotify/play?device_id=${devId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uris: [uri] }),
+          // position_ms lets a resume-after-idle restart the track exactly where
+          // it was paused, instead of from 0.
+          body: JSON.stringify({ uris: [uri], position_ms: startAt }),
         });
 
       const attempt = async (): Promise<boolean> => {
@@ -487,15 +492,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       hiddenAtRef.current = 0;
 
       let state = await p.getCurrentState();
-      // After a long idle the web device is usually dropped. Recover
-      // NON-destructively here: a disconnect()+connect() on the existing player
-      // re-registers the device while KEEPING the cached deviceId visible.
-      //
-      // Do NOT rebuild the player (recreatePlayer) on focus: that nulls deviceId
-      // (→ "Initializing…" overlay) and a fresh Spotify.Player created outside a
-      // user gesture frequently never fires 'ready' on iOS, wedging the UI on an
-      // endless spinner. The real rebuild is deferred to the next play tap, where
-      // playUri/togglePlay run it inside a gesture and audio can be unlocked.
+      // After a long idle the web device is usually dropped. First try the cheap,
+      // NON-destructive recovery: disconnect()+connect() on the existing player
+      // re-registers the device while keeping the cached deviceId visible (no
+      // "Initializing…" flash).
       const awayLimit = window.innerWidth < 640 ? 45 * 1000 : 5 * 60 * 1000;
       if (
         (!state || hiddenMs > awayLimit) &&
@@ -504,6 +504,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       ) {
         await reconnectDevice();
         state = (await playerRef.current?.getCurrentState()) ?? null;
+
+        // If a LONG idle left the device truly dead — reconnect couldn't revive
+        // the SDK socket, so there's still no live state — rebuild the player
+        // proactively NOW, while the user is looking at the UI. That way a fresh,
+        // ready device exists BEFORE they tap play, so the tap can unlock audio
+        // in-gesture instead of racing a multi-second rebuild (which on iOS
+        // outlives the gesture's audio-activation window → silent playback). The
+        // starvation-proof watchdog covers the case where this rebuild is slow.
+        if (!state && hiddenMs > awayLimit && recreatePlayerRef.current) {
+          await recreatePlayerRef.current();
+          state = (await playerRef.current?.getCurrentState()) ?? null;
+        }
       }
 
       if (!state) {
@@ -562,25 +574,26 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (v) {
         ensureActivated();
         const state = await playerRef.current?.getCurrentState();
-        if (state) {
+        // Capture the paused position BEFORE any recovery clears it.
+        const resumeAt = lastPosRef.current;
+        if (state && !state.paused) {
+          // Already actually playing on this device — nothing to do.
+        } else if (state) {
+          // Live device with the track still loaded (short background) — a plain
+          // resume works and keeps the exact position.
           await playerRef.current?.resume();
         } else {
-          // This device isn't the active audio output (audio is on another
-          // device, or it was dropped after backgrounding). Re-claim playback
-          // onto THIS device so sound actually comes through here.
-          const resumeHere = async () => {
-            const id = deviceIdRef.current;
-            if (!id) return null;
-            return fetch(`/api/spotify/play?device_id=${id}`, { method: 'PUT' }).catch(() => null);
-          };
-          let res = await resumeHere();
-          if (!res || !res.ok) {
-            await reconnectDevice();
-            res = await resumeHere();
-          }
-          if ((!res || !res.ok) && recreatePlayerRef.current) {
-            await recreatePlayerRef.current();
-            await resumeHere();
+          // No live state: the web device was dropped while backgrounded. Do NOT
+          // bodyless-"resume" — after a long idle Spotify has discarded the paused
+          // session, so resume hits a dead/empty context. Re-play the current
+          // track at its last position through playUri, which carries the full
+          // device-recovery ladder (reconnect → rebuild) and actually starts audio.
+          const track = currentTrackRef.current;
+          if (track) {
+            await playUri(track.uri, resumeAt);
+          } else {
+            setIsPlaying(false);
+            return;
           }
         }
       } else {
@@ -588,7 +601,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
       setIsPlaying(v);
     },
-    [ensureActivated, reconnectDevice]
+    [ensureActivated, playUri]
   );
 
   const seekTo = useCallback(async (ms: number) => {
