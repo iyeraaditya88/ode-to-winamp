@@ -333,13 +333,48 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     playerRef.current = player;
   }, []);
 
+  // Re-download and re-run the Spotify SDK script from scratch. A new
+  // Spotify.Player built from the already-loaded SDK reuses the SDK's global
+  // connection state, which stays wedged after a long background — so a plain
+  // rebuild won't recover, but a page refresh will. Re-injecting the script
+  // re-initialises that global state: a reload without reloading.
+  const reloadSdkScript = useCallback(() => {
+    return new Promise<void>((resolve) => {
+      document.getElementById('spotify-player-sdk')?.remove();
+      // Drop the stale global so the re-injected script fully re-initialises
+      // (and so any double-load guard inside the SDK doesn't short-circuit).
+      try {
+        delete (window as unknown as { Spotify?: unknown }).Spotify;
+      } catch {
+        (window as unknown as { Spotify?: unknown }).Spotify = undefined;
+      }
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        resolve();
+      };
+      // The SDK calls this once it has redefined window.Spotify.
+      window.onSpotifyWebPlaybackSDKReady = finish;
+      const script = document.createElement('script');
+      script.id = 'spotify-player-sdk';
+      script.src = 'https://sdk.scdn.co/spotify-player.js';
+      script.async = true;
+      script.onerror = finish;
+      document.body.appendChild(script);
+      // Don't hang the recovery forever if the ready callback never fires.
+      setTimeout(finish, 6000);
+    });
+  }, []);
+
   // Nuclear recovery: after a long idle the SDK's socket/audio context can get
-  // into a state where disconnect()+connect() won't recover (only a page reload
-  // does). Destroy the player and build a fresh one — a reload without reloading.
+  // into a state where disconnect()+connect() — and even a new Player from the
+  // same SDK — won't recover (only a page reload does). Tear down the player AND
+  // reload the SDK script, then build a fresh player: a reload without reloading.
   const recreatePlayer = useCallback(async () => {
     if (recreatingRef.current) {
       const s = Date.now();
-      while (recreatingRef.current && Date.now() - s < 9000) {
+      while (recreatingRef.current && Date.now() - s < 14000) {
         await new Promise((r) => setTimeout(r, 150));
       }
       return;
@@ -355,9 +390,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       deviceIdRef.current = null;
       setDeviceId(null);
       initialized.current = false;
+
+      // Reload the SDK itself — the crucial step a plain rebuild was missing.
+      await reloadSdkScript();
+      if (typeof window === 'undefined' || !window.Spotify) {
+        // SDK didn't come back in time — surface a retry rather than throwing.
+        setPlayerError('slow');
+        return;
+      }
+
       await initPlayer();
       const start = Date.now();
-      while (!deviceIdRef.current && Date.now() - start < 8000) {
+      while (!deviceIdRef.current && Date.now() - start < 10000) {
         await new Promise((r) => setTimeout(r, 150));
       }
       // Re-arm audio on the freshly built player. A rebuild is normally
@@ -371,7 +415,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     } finally {
       recreatingRef.current = false;
     }
-  }, [initPlayer, ensureActivated]);
+  }, [initPlayer, ensureActivated, reloadSdkScript]);
 
   recreatePlayerRef.current = recreatePlayer;
 
