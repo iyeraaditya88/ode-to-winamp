@@ -90,9 +90,10 @@ interface GridSceneProps {
   burst: boolean;
   onReady?: () => void;
   paused?: boolean;
+  onActivity?: () => void; // signal interaction so the wrapper keeps the render loop awake
 }
 
-function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onReady, paused }: GridSceneProps) {
+function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onReady, paused, onActivity }: GridSceneProps) {
   const { viewport, size, camera, gl } = useThree();
   const getTexture = useTextureCache();
   const groupRef = useRef<THREE.Group>(null);
@@ -264,6 +265,7 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
 
     const onDown = (e: PointerEvent) => {
       if (pinchingRef.current) return;
+      onActivity?.();
       selActive.current = false; // mouse takes over from keyboard selection
       panTarget.current = null;
       dragging.current = true;
@@ -292,9 +294,16 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
         // Hover detection here (on actual pointer movement) instead of raycasting
         // every frame — far cheaper when the pointer is still.
         const tile = tileUnderPointer(e.clientX, e.clientY);
-        hoveredTile.current = tile ? (tile.mesh.userData.poolIndex as number) : -1;
+        const next = tile ? (tile.mesh.userData.poolIndex as number) : -1;
+        // Only wake the render loop when the hovered tile actually changes, so a
+        // still mouse (or one moving over other UI) doesn't keep the grid drawing.
+        if (next !== hoveredTile.current) {
+          hoveredTile.current = next;
+          onActivity?.();
+        }
         return;
       }
+      onActivity?.(); // active drag — keep the loop awake
       // Scale pixel→world by the current zoom so panning feels the same at any
       // zoom (a pixel covers more world when zoomed out).
       const zScale = camera.position.z / BASE_Z;
@@ -339,6 +348,7 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
     // Desktop: scroll to zoom (up = in, map convention).
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      onActivity?.();
       zoomRef.current = clampZoom(zoomRef.current + e.deltaY * 0.01);
     };
 
@@ -351,11 +361,13 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
         pinchingRef.current = true;
         dragging.current = false; // abandon any single-finger drag
         pinchPrev = fingerDist(e.touches);
+        onActivity?.();
       }
     };
     const onTouchMove = (e: TouchEvent) => {
       if (!pinchingRef.current || e.touches.length !== 2) return;
       e.preventDefault();
+      onActivity?.();
       const d = fingerDist(e.touches);
       if (pinchPrev > 0 && d > 0) {
         // Fingers apart (d grows) → camera closer (z down) → zoom in.
@@ -388,7 +400,7 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
       el.removeEventListener('touchend', onTouchEnd);
       el.removeEventListener('touchcancel', onTouchEnd);
     };
-  }, [gl, camera, pxToWorld, distortionRef, tileUnderPointer, songs, onPlay, REST_DIST, DRAG_DIST, ZOOM_MIN, ZOOM_MAX]);
+  }, [gl, camera, pxToWorld, distortionRef, tileUnderPointer, songs, onPlay, onActivity, REST_DIST, DRAG_DIST, ZOOM_MIN, ZOOM_MAX]);
 
   // Keyboard selection: arrows move a focus cursor cell-by-cell, Enter/Space
   // plays the selected album. Centers the selection by easing the pan (useFrame).
@@ -401,6 +413,8 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
       const isArrow =
         e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown';
       const isPlayKey = e.key === 'Enter' || e.key === ' ';
+
+      if (isArrow || isPlayKey || e.key === 'Escape') onActivity?.();
 
       if (isArrow) {
         e.preventDefault();
@@ -435,7 +449,7 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [paused, songs, onPlay, STRIDE]);
+  }, [paused, songs, onPlay, STRIDE, onActivity]);
 
   // Keep the resting curvature in sync with the breakpoint (not while dragging).
   useEffect(() => {
@@ -598,6 +612,7 @@ interface PhantomGridProps {
   songs: SpotifyTrack[];
   onPlay: (track: SpotifyTrack) => void;
   currentTrackId?: string;
+  isPlaying?: boolean;
   burst?: boolean;
   onReady?: () => void;
   /** When true (e.g. full-screen Now Playing covers the grid) the WebGL render
@@ -605,10 +620,34 @@ interface PhantomGridProps {
   paused?: boolean;
 }
 
-function PhantomGrid({ songs, onPlay, currentTrackId, burst = true, onReady, paused = false }: PhantomGridProps) {
+function PhantomGrid({ songs, onPlay, currentTrackId, isPlaying = false, burst = true, onReady, paused = false }: PhantomGridProps) {
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
   const distortionRef = useRef(isMobile ? 0.18 : 0.12);
   const [hint, setHint] = useState(true);
+
+  // Activity-driven render loop. The grid only needs continuous frames while a
+  // song is playing (the glow halo pulses) or the user is interacting (drag,
+  // zoom, hover, keyboard, entrance). When paused AND idle there's nothing to
+  // animate, so we drop the loop to 'never' and the GPU goes quiet instead of
+  // burning 60fps forever. Start awake so the entrance burst renders.
+  const [interacting, setInteracting] = useState(true);
+  const settleRef = useRef<ReturnType<typeof setTimeout>>();
+  const onActivity = useCallback(() => {
+    setInteracting(true); // no-op re-render if already true
+    if (settleRef.current) clearTimeout(settleRef.current);
+    // Outlast pan inertia + the distortion tween (~1s) so motion finishes before
+    // we sleep; a flick won't freeze mid-glide.
+    settleRef.current = setTimeout(() => setInteracting(false), 3000);
+  }, []);
+
+  // Wake for one settle window whenever the scene meaningfully changes while
+  // otherwise idle (first mount/entrance, library swap, selection change).
+  useEffect(() => {
+    onActivity();
+    return () => {
+      if (settleRef.current) clearTimeout(settleRef.current);
+    };
+  }, [songs, currentTrackId, onActivity]);
 
   useEffect(() => {
     const t = setTimeout(() => setHint(false), 4500);
@@ -617,12 +656,14 @@ function PhantomGrid({ songs, onPlay, currentTrackId, burst = true, onReady, pau
 
   if (songs.length === 0) return null;
 
+  // Render only when there's something to animate; suspend entirely when the
+  // grid is hidden behind a full-screen panel.
+  const live = !paused && (isPlaying || interacting);
+
   return (
     <div className="fixed inset-0 z-0 cursor-grab active:cursor-grabbing">
       <Canvas
-        // Suspend rendering entirely when the grid is hidden behind a full-screen
-        // panel — no point drawing 60fps of WebGL nobody can see.
-        frameloop={paused ? 'never' : 'always'}
+        frameloop={live ? 'always' : 'never'}
         camera={{
           position: [0, 0, isMobile ? 11.5 : 13.5],
           fov: 45,
@@ -643,6 +684,7 @@ function PhantomGrid({ songs, onPlay, currentTrackId, burst = true, onReady, pau
           burst={burst}
           onReady={onReady}
           paused={paused}
+          onActivity={onActivity}
         />
         <EffectComposer>
           <LensDistortion distortionRef={distortionRef} />

@@ -23,7 +23,7 @@ interface LandingPageProps {
 export default function LandingPage({ burst = true, onGridReady }: LandingPageProps) {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error } = useLikedSongs();
   const { query, setQuery, results: searchResults, isLoading: searchLoading } = useSearch();
-  const { playTrack, currentTrack, deviceId, showNowPlaying, playerError, retryPlayer } = usePlayer();
+  const { playTrack, currentTrack, isPlaying, deviceId, showNowPlaying, playerError, retryPlayer } = usePlayer();
   const [searchOpen, setSearchOpen] = useState(false);
   const [recognizeOpen, setRecognizeOpen] = useState(false);
   const [musicTasteOpen, setMusicTasteOpen] = useState(false);
@@ -92,6 +92,7 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
           songs={gridSongs}
           onPlay={handlePlay}
           currentTrackId={currentTrack?.id}
+          isPlaying={isPlaying}
           burst={burst}
           onReady={onGridReady}
           paused={showNowPlaying}
