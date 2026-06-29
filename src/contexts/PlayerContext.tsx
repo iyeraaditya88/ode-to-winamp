@@ -70,6 +70,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const lastPlayUriRef = useRef<string | null>(null); // most recent intended track (for post-play verify)
   const hiddenAtRef = useRef(0); // timestamp the tab was last hidden (for focus recovery)
   const activatedRef = useRef(false);
+  const deviceLessSinceRef = useRef(0); // when we entered a device-less state — absolute watchdog deadline
 
   // Mobile browsers block audio until the SDK's element is activated inside a
   // user gesture. Call this from the first tap that starts playback.
@@ -354,10 +355,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       while (!deviceIdRef.current && Date.now() - start < 8000) {
         await new Promise((r) => setTimeout(r, 150));
       }
+      // Re-arm audio on the freshly built player. A rebuild is normally
+      // triggered from a play tap, so iOS still has transient user-activation
+      // here — without this, the new audio element is never unlocked and
+      // playback is silent even though the UI shows "playing".
+      if (deviceIdRef.current) {
+        activatedRef.current = false;
+        ensureActivated();
+      }
     } finally {
       recreatingRef.current = false;
     }
-  }, [initPlayer]);
+  }, [initPlayer, ensureActivated]);
 
   recreatePlayerRef.current = recreatePlayer;
 
@@ -370,13 +379,26 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // Watchdog: if no device registers within ~12s (and there's no hard error),
   // rebuild once; if it still doesn't come up, surface a retry instead of an
   // endless spinner. Catches mobile SDK hiccups + transient token failures.
+  //
+  // The deadline is anchored to an absolute "device-less since" timestamp, NOT
+  // reset on every re-run. Otherwise a flapping deviceId (foreground events,
+  // not_ready reconnects, rebuild churn) keeps clearing the timer and the user
+  // is wedged on the spinner forever, never even reaching the Retry button.
   useEffect(() => {
-    if (deviceId || playerError) return;
+    if (deviceId || playerError) {
+      deviceLessSinceRef.current = 0;
+      return;
+    }
+    if (!deviceLessSinceRef.current) deviceLessSinceRef.current = Date.now();
+    const REBUILD_AT = 12000;
+    const delay = Math.max(1000, REBUILD_AT - (Date.now() - deviceLessSinceRef.current));
     const t = setTimeout(async () => {
       if (deviceIdRef.current) return;
       await recreatePlayerRef.current?.();
+      // One rescue attempt — if a device still didn't register, stop spinning
+      // and give the user an actionable Retry rather than an endless spinner.
       if (!deviceIdRef.current) setPlayerError('slow');
-    }, 12000);
+    }, delay);
     return () => clearTimeout(t);
   }, [deviceId, playerError]);
 
@@ -465,14 +487,22 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       hiddenAtRef.current = 0;
 
       let state = await p.getCurrentState();
-      // Proactively rebuild the player on focus when the device looks dead (no
-      // state) or we were away a long time — so the next play works without a
-      // manual reload. Mobile (esp. iOS PWA) suspends the page aggressively and
-      // Spotify drops the web device within ~30-60s, so use a much shorter
-      // "away too long" window on small screens.
+      // After a long idle the web device is usually dropped. Recover
+      // NON-destructively here: a disconnect()+connect() on the existing player
+      // re-registers the device while KEEPING the cached deviceId visible.
+      //
+      // Do NOT rebuild the player (recreatePlayer) on focus: that nulls deviceId
+      // (→ "Initializing…" overlay) and a fresh Spotify.Player created outside a
+      // user gesture frequently never fires 'ready' on iOS, wedging the UI on an
+      // endless spinner. The real rebuild is deferred to the next play tap, where
+      // playUri/togglePlay run it inside a gesture and audio can be unlocked.
       const awayLimit = window.innerWidth < 640 ? 45 * 1000 : 5 * 60 * 1000;
-      if ((!state || hiddenMs > awayLimit) && recreatePlayerRef.current) {
-        await recreatePlayerRef.current();
+      if (
+        (!state || hiddenMs > awayLimit) &&
+        !reconnectingRef.current &&
+        !recreatingRef.current
+      ) {
+        await reconnectDevice();
         state = (await playerRef.current?.getCurrentState()) ?? null;
       }
 
@@ -493,7 +523,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener('pageshow', resync);
       window.removeEventListener('pagehide', markHidden);
     };
-  }, []);
+  }, [reconnectDevice]);
 
   const playTrack = useCallback(
     (track: SpotifyTrack, context?: SpotifyTrack[]) => {
