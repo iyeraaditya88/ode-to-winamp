@@ -475,10 +475,24 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     recreatingRef.current = true;
     plog('recreate', 'START (full SDK reload + rebuild)');
     try {
-      try {
-        playerRef.current?.disconnect();
-      } catch {
-        /* ignore */
+      // Detach the OLD player's listeners before discarding it. disconnect()
+      // alone doesn't stop them — across an SDK-script reload the old listeners
+      // survive in the SDK's emitter and keep firing alongside the new player's,
+      // which is why every ready/state event was logging twice. removeListener
+      // clears them so only the fresh player reports.
+      const old = playerRef.current as unknown as {
+        removeListener?: (e: string) => void;
+        disconnect?: () => void;
+      } | null;
+      if (old) {
+        try {
+          ['ready', 'not_ready', 'player_state_changed', 'account_error', 'initialization_error', 'authentication_error'].forEach(
+            (ev) => old.removeListener?.(ev)
+          );
+          old.disconnect?.();
+        } catch {
+          /* ignore */
+        }
       }
       playerRef.current = null;
       deviceIdRef.current = null;
