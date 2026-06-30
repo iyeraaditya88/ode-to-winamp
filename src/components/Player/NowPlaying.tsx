@@ -345,7 +345,7 @@ export default function NowPlaying({ progress, onCollapse }: NowPlayingProps) {
                       />
                     ))}
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex flex-wrap items-center justify-center gap-1">
                     {EQ_STYLES.map((s) => (
                       <button
                         key={s.id}

@@ -57,39 +57,68 @@ float ampAt(float x){ return texture2D(uAmp, vec2(clamp(x, 0.0, 1.0), 0.5)).r; }
 void main(){
   vec2 uv = vUv;
   float px = 1.5 / uRes.y;
-  bool mirror = (uStyle == 2);
-  float vy = mirror ? abs(uv.y - 0.5) * 2.0 : uv.y;
+  vec3 color = vec3(0.0);
 
-  float x = uv.x;
-  float gapMask = 1.0;
-  if (uStyle == 0 || uStyle == 1) {
-    float idx = floor(x * uBands);
-    float fr = fract(x * uBands);
-    gapMask = smoothstep(0.10, 0.16, fr) * smoothstep(0.90, 0.84, fr);
-    x = (idx + 0.5) / uBands;
+  if (uStyle <= 2) {
+    // bars (0) / blocks (1) / mirror (2)
+    bool mirror = (uStyle == 2);
+    float vy = mirror ? abs(uv.y - 0.5) * 2.0 : uv.y;
+    float x = uv.x;
+    float gapMask = 1.0;
+    if (uStyle == 0 || uStyle == 1) {
+      float idx = floor(x * uBands);
+      float fr = fract(x * uBands);
+      gapMask = smoothstep(0.10, 0.16, fr) * smoothstep(0.90, 0.84, fr);
+      x = (idx + 0.5) / uBands;
+    }
+    float a = pow(ampAt(x), 0.85);
+    float top = a;
+    float fill = smoothstep(top + px, top - px, vy);
+    vec3 baseCol = grad(mirror ? vy : (vy / max(top, 0.001)));
+    float inner = exp(-max(0.0, top - vy) / 0.05) * fill;
+    float halo = exp(-max(0.0, vy - top) / 0.12) * uGlow;
+    float cap = 1.0 - smoothstep(0.0, px * 2.5, abs(vy - top));
+    float seg = 1.0;
+    if (uStyle == 1) { float sy = fract(vy * 24.0); seg = smoothstep(0.0, 0.16, sy) * smoothstep(1.0, 0.84, sy); }
+    color = baseCol * fill * seg + baseCol * inner * 0.7 + grad(top) * halo + vec3(1.0) * cap * 0.5 * step(0.02, top);
+    color *= gapMask;
+    if (mirror && uv.y < 0.5) color *= 0.5;
+  } else if (uStyle == 3) {
+    // wave — a glowing contour line tracing the spectrum top
+    float a = pow(ampAt(uv.x), 0.85);
+    float dist = abs(uv.y - a);
+    float core = 1.0 - smoothstep(0.0, px * 2.5, dist);
+    float glw = exp(-dist / 0.06) * uGlow;
+    vec3 c = grad(a);
+    color = (c * core + c * glw * 0.85) * step(0.02, a);
+  } else if (uStyle == 4) {
+    // ribbon — a smooth filled area under the spectrum curve
+    float a = pow(ampAt(uv.x), 0.85);
+    float fill = smoothstep(a + px, a - px, uv.y);
+    vec3 baseCol = grad(uv.y / max(a, 0.001));
+    float inner = exp(-max(0.0, a - uv.y) / 0.06) * fill;
+    float halo = exp(-max(0.0, uv.y - a) / 0.14) * uGlow;
+    float line = 1.0 - smoothstep(0.0, px * 2.0, abs(uv.y - a));
+    color = baseCol * fill * 0.8 + baseCol * inner * 0.8 + grad(a) * halo + grad(a) * line * 0.9 * step(0.02, a);
+  } else if (uStyle == 5) {
+    // dots — a glowing dot riding the top of each band (round via pixel space)
+    float idx = floor(uv.x * uBands);
+    float cx = (idx + 0.5) / uBands;
+    float a = pow(ampAt(cx), 0.85);
+    vec2 dpx = vec2((uv.x - cx) * uRes.x, (uv.y - a) * uRes.y);
+    float r = length(dpx);
+    float dotR = uRes.y * 0.11;
+    float core = 1.0 - smoothstep(dotR * 0.5, dotR, r);
+    float glw = exp(-r / (uRes.y * 0.18)) * uGlow;
+    vec3 c = grad(a);
+    color = (c * core + c * glw * 0.7) * step(0.02, a);
+  } else {
+    // aurora (6) — soft feathered glow columns, no hard edge
+    float a = pow(ampAt(uv.x), 0.85);
+    float body = smoothstep(a + 0.16, a - 0.04, uv.y);
+    float halo = exp(-max(0.0, uv.y - a) / 0.18) * uGlow;
+    color = grad(uv.y) * body * 0.7 + grad(a) * halo * 0.7;
   }
-  float a = pow(ampAt(x), 0.85);
-  float top = a;
-
-  float fill = smoothstep(top + px, top - px, vy);
-  vec3 baseCol = grad(mirror ? vy : (vy / max(top, 0.001)));
-
-  float inner = exp(-max(0.0, top - vy) / 0.05) * fill;   // bright just under the tip
-  float halo  = exp(-max(0.0, vy - top) / 0.12) * uGlow;  // soft bloom above
-  float cap   = 1.0 - smoothstep(0.0, px * 2.5, abs(vy - top));
-
-  float seg = 1.0;
-  if (uStyle == 1) {
-    float sy = fract(vy * 24.0);
-    seg = smoothstep(0.0, 0.16, sy) * smoothstep(1.0, 0.84, sy);
-  }
-
-  vec3 color = baseCol * fill * seg;
-  color += baseCol * inner * 0.7;
-  color += grad(top) * halo;
-  color += vec3(1.0) * cap * 0.5 * step(0.02, top);
-  color *= gapMask;
-  if (mirror && uv.y < 0.5) color *= 0.5;
 
   // Each pixel is shaded once, so no blending is needed — alpha = luminance makes
   // the dark areas transparent so the panel shows through and the spectrum glows.
@@ -207,7 +236,16 @@ export default function Equalizer({
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    const styleId = (s: EqStyle) => (s === 'bars' ? 0 : s === 'blocks' ? 1 : 2);
+    const STYLE_ID: Record<EqStyle, number> = {
+      bars: 0,
+      blocks: 1,
+      mirror: 2,
+      wave: 3,
+      ribbon: 4,
+      dots: 5,
+      aurora: 6,
+    };
+    const styleId = (s: EqStyle) => STYLE_ID[s] ?? 0;
 
     const draw = (ts: number) => {
       const dt = lastTsRef.current ? (ts - lastTsRef.current) / 1000 : 0.016;

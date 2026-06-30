@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
 export type EqTheme = 'winamp' | 'teal' | 'fire' | 'ice' | 'mono' | 'rainbow';
-export type EqStyle = 'bars' | 'blocks' | 'mirror';
+export type EqStyle = 'bars' | 'blocks' | 'mirror' | 'wave' | 'ribbon' | 'dots' | 'aurora';
 
 export interface EqSettings {
   theme: EqTheme;
@@ -24,6 +24,10 @@ export const EQ_STYLES: { id: EqStyle; label: string }[] = [
   { id: 'bars', label: 'Bars' },
   { id: 'blocks', label: 'Blocks' },
   { id: 'mirror', label: 'Mirror' },
+  { id: 'wave', label: 'Wave' },
+  { id: 'ribbon', label: 'Ribbon' },
+  { id: 'dots', label: 'Dots' },
+  { id: 'aurora', label: 'Aurora' },
 ];
 
 const DEFAULT: EqSettings = { theme: 'rainbow', style: 'blocks', barCount: 32 };
