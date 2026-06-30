@@ -31,6 +31,7 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
   const [frozenSongs, setFrozenSongs] = useState<SpotifyTrack[] | null>(null);
   const [queuedToast, setQueuedToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [tileMenu, setTileMenu] = useState<{ track: SpotifyTrack; x: number; y: number } | null>(null);
 
   // Memoised so a stable array feeds the freeze effect + grid (avoids a fresh
   // identity on every render churning dependent hooks).
@@ -78,7 +79,12 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
     [playTrack, gridSongs]
   );
 
-  // Right-click a grid tile → queue it to play next, with a brief confirmation.
+  // Right-click a grid tile → open a small menu at the cursor.
+  const handleTileMenu = useCallback((track: SpotifyTrack, x: number, y: number) => {
+    setTileMenu({ track, x, y });
+  }, []);
+
+  // Queue a track to play next, with a brief confirmation.
   const handleQueue = useCallback(
     (track: SpotifyTrack) => {
       queueTrack(track);
@@ -88,6 +94,23 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
     },
     [queueTrack]
   );
+
+  // Dismiss the tile menu on any outside interaction or Escape.
+  useEffect(() => {
+    if (!tileMenu) return;
+    const close = () => setTileMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('wheel', close, { passive: true });
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('wheel', close);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [tileMenu]);
 
   // Playing from search queues the search results, so Next/Prev keep exploring
   // the results rather than jumping back to the liked-songs grid.
@@ -102,7 +125,33 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
     <div className="relative h-screen w-screen overflow-hidden bg-[#080808]">
       <DebugOverlay />
 
-      {/* "Added to queue" confirmation after a right-click on the grid */}
+      {/* Right-click tile menu */}
+      {tileMenu && (
+        <div
+          className="fixed z-50 min-w-[180px] max-w-[240px] rounded-md border border-white/10 bg-[#0d0d0d]/95 backdrop-blur-md shadow-xl py-1 font-mono"
+          style={{
+            left: Math.min(tileMenu.x, (typeof window !== 'undefined' ? window.innerWidth : 9999) - 250),
+            top: Math.min(tileMenu.y, (typeof window !== 'undefined' ? window.innerHeight : 9999) - 110),
+          }}
+          // Keep clicks inside the menu from bubbling to the window close handler.
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-1.5 text-[10px] uppercase tracking-widest text-white/40 truncate">
+            {tileMenu.track.name}
+          </div>
+          <button
+            onClick={() => {
+              handleQueue(tileMenu.track);
+              setTileMenu(null);
+            }}
+            className="w-full text-left px-3 py-2 text-xs text-white/85 hover:bg-[#00b4b4]/15 hover:text-white transition-colors"
+          >
+            Add to queue
+          </button>
+        </div>
+      )}
+
+      {/* "Added to queue" confirmation */}
       {queuedToast && (
         <div className="pointer-events-none fixed top-20 left-1/2 -translate-x-1/2 z-40 rounded-sm border border-[#00b4b4]/30 bg-black/80 backdrop-blur-sm px-4 py-2 text-xs font-mono text-white/85">
           <span className="text-[#00b4b4]">Queued ·</span> {queuedToast}
@@ -113,7 +162,7 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
         <PhantomGrid
           songs={gridSongs}
           onPlay={handlePlay}
-          onQueue={handleQueue}
+          onTileMenu={handleTileMenu}
           currentTrackId={currentTrack?.id}
           isPlaying={isPlaying}
           burst={burst}

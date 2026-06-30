@@ -85,7 +85,7 @@ const ENTRANCE_DURATION = 1.3; // seconds for the burst-into-tiles reveal
 interface GridSceneProps {
   songs: SpotifyTrack[];
   onPlay: (track: SpotifyTrack) => void;
-  onQueue?: (track: SpotifyTrack) => void; // right-click → add to "play next" queue
+  onTileMenu?: (track: SpotifyTrack, clientX: number, clientY: number) => void; // right-click → open menu
   currentTrackId?: string;
   distortionRef: React.MutableRefObject<number>;
   burst: boolean;
@@ -94,7 +94,7 @@ interface GridSceneProps {
   onActivity?: () => void; // signal interaction so the wrapper keeps the render loop awake
 }
 
-function GridScene({ songs, onPlay, onQueue, currentTrackId, distortionRef, burst, onReady, paused, onActivity }: GridSceneProps) {
+function GridScene({ songs, onPlay, onTileMenu, currentTrackId, distortionRef, burst, onReady, paused, onActivity }: GridSceneProps) {
   const { viewport, size, camera, gl } = useThree();
   const getTexture = useTextureCache();
   const groupRef = useRef<THREE.Group>(null);
@@ -270,6 +270,9 @@ function GridScene({ songs, onPlay, onQueue, currentTrackId, distortionRef, burs
 
     const onDown = (e: PointerEvent) => {
       if (pinchingRef.current) return;
+      // Only the left button starts a drag/tap. Without this a right-click also
+      // registered as a tap and played the song (in addition to opening the menu).
+      if (e.button !== 0) return;
       onActivity?.();
       selActive.current = false; // mouse takes over from keyboard selection
       panTarget.current = null;
@@ -387,15 +390,15 @@ function GridScene({ songs, onPlay, onQueue, currentTrackId, distortionRef, burs
       }
     };
 
-    // Right-click a tile → add that song to the "play next" queue (suppress the
+    // Right-click a tile → open the tile menu at the cursor (suppress the
     // browser's context menu). No-op on empty space.
     const onContextMenu = (e: MouseEvent) => {
       e.preventDefault();
-      if (!onQueue) return;
+      if (!onTileMenu) return;
       const tile = tileUnderPointer(e.clientX, e.clientY);
       if (tile && tile.contentIndex >= 0) {
         const track = songs[tile.contentIndex % songs.length];
-        if (track) onQueue(track);
+        if (track) onTileMenu(track, e.clientX, e.clientY);
       }
     };
 
@@ -419,7 +422,7 @@ function GridScene({ songs, onPlay, onQueue, currentTrackId, distortionRef, burs
       el.removeEventListener('touchend', onTouchEnd);
       el.removeEventListener('touchcancel', onTouchEnd);
     };
-  }, [gl, camera, pxToWorld, distortionRef, tileUnderPointer, songs, onPlay, onQueue, onActivity, REST_DIST, DRAG_DIST, ZOOM_MIN, ZOOM_MAX]);
+  }, [gl, camera, pxToWorld, distortionRef, tileUnderPointer, songs, onPlay, onTileMenu, onActivity, REST_DIST, DRAG_DIST, ZOOM_MIN, ZOOM_MAX]);
 
   // Keyboard selection: arrows move a focus cursor cell-by-cell, Enter/Space
   // plays the selected album. Centers the selection by easing the pan (useFrame).
@@ -630,7 +633,7 @@ function GridScene({ songs, onPlay, onQueue, currentTrackId, distortionRef, burs
 interface PhantomGridProps {
   songs: SpotifyTrack[];
   onPlay: (track: SpotifyTrack) => void;
-  onQueue?: (track: SpotifyTrack) => void;
+  onTileMenu?: (track: SpotifyTrack, clientX: number, clientY: number) => void;
   currentTrackId?: string;
   isPlaying?: boolean;
   burst?: boolean;
@@ -640,7 +643,7 @@ interface PhantomGridProps {
   paused?: boolean;
 }
 
-function PhantomGrid({ songs, onPlay, onQueue, currentTrackId, isPlaying = false, burst = true, onReady, paused = false }: PhantomGridProps) {
+function PhantomGrid({ songs, onPlay, onTileMenu, currentTrackId, isPlaying = false, burst = true, onReady, paused = false }: PhantomGridProps) {
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
   const distortionRef = useRef(isMobile ? 0.18 : 0.12);
   const [hint, setHint] = useState(true);
@@ -699,7 +702,7 @@ function PhantomGrid({ songs, onPlay, onQueue, currentTrackId, isPlaying = false
         <GridScene
           songs={songs}
           onPlay={onPlay}
-          onQueue={onQueue}
+          onTileMenu={onTileMenu}
           currentTrackId={currentTrackId}
           distortionRef={distortionRef}
           burst={burst}
