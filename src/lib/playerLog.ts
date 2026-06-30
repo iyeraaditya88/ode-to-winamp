@@ -1,18 +1,41 @@
-// Lightweight, dependency-free event log for diagnosing the playback lifecycle
-// (SDK ready/drop, foreground recovery, rebuilds, play attempts, activation).
-// Entries go to an in-memory ring buffer (rendered by DebugOverlay so it's
-// visible on mobile PWA where devtools aren't reachable) and to console.
+// Toggleable, zero-cost-when-off event log for the playback lifecycle (SDK
+// ready/drop, foreground recovery, rebuilds, play attempts, activation).
+//
+// OFF by default. Turn it on any of these ways — it persists across reloads:
+//   • append ?debug=1 to the URL (?debug=0 to force off)
+//   • call playerDebug() in the browser console  (playerDebug(false) to stop)
+//   • tap the 🐞 chip's "off" once the overlay is showing
+// When off, plog() returns immediately: no buffer growth, no console output,
+// and DebugOverlay renders nothing.
 
 export interface PlayerLogEntry {
-  t: number; // ms since first log
+  t: number; // ms since first recorded log
   tag: string;
   msg?: string;
 }
 
 const MAX = 400;
 const buffer: PlayerLogEntry[] = [];
-const subs = new Set<() => void>();
+const logSubs = new Set<() => void>();
+const enabledSubs = new Set<() => void>();
 let t0 = 0;
+let enabled = false;
+
+function readInitialEnabled(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('debug') === '1') return true;
+    if (q.get('debug') === '0') return false;
+  } catch {
+    /* ignore */
+  }
+  try {
+    return window.localStorage.getItem('otw_debug') === '1';
+  } catch {
+    return false;
+  }
+}
 
 function elapsed(): number {
   if (typeof performance === 'undefined') return 0;
@@ -21,14 +44,41 @@ function elapsed(): number {
 }
 
 export function plog(tag: string, msg?: string): void {
+  if (!enabled) return; // zero cost when disabled
   const entry: PlayerLogEntry = { t: elapsed(), tag, msg };
   buffer.push(entry);
   if (buffer.length > MAX) buffer.shift();
-  if (typeof console !== 'undefined') {
-    // eslint-disable-next-line no-console
-    console.log(`[plog +${entry.t}ms] ${tag}${msg ? ' — ' + msg : ''}`);
+  // eslint-disable-next-line no-console
+  console.log(`[plog +${entry.t}ms] ${tag}${msg ? ' — ' + msg : ''}`);
+  logSubs.forEach((s) => s());
+}
+
+export function isPlayerDebug(): boolean {
+  return enabled;
+}
+
+export function setPlayerDebug(on: boolean): void {
+  enabled = on;
+  try {
+    window.localStorage.setItem('otw_debug', on ? '1' : '0');
+  } catch {
+    /* ignore */
   }
-  subs.forEach((s) => s());
+  enabledSubs.forEach((s) => s());
+}
+
+export function subscribePlayerDebug(fn: () => void): () => void {
+  enabledSubs.add(fn);
+  return () => {
+    enabledSubs.delete(fn);
+  };
+}
+
+export function subscribePlayerLogs(fn: () => void): () => void {
+  logSubs.add(fn);
+  return () => {
+    logSubs.delete(fn);
+  };
 }
 
 export function getPlayerLogs(): PlayerLogEntry[] {
@@ -37,33 +87,16 @@ export function getPlayerLogs(): PlayerLogEntry[] {
 
 export function clearPlayerLogs(): void {
   buffer.length = 0;
-  subs.forEach((s) => s());
-}
-
-export function subscribePlayerLogs(fn: () => void): () => void {
-  subs.add(fn);
-  return () => {
-    subs.delete(fn);
-  };
+  logSubs.forEach((s) => s());
 }
 
 export function formatPlayerLogs(): string {
   return buffer.map((e) => `+${e.t}ms\t${e.tag}${e.msg ? '\t' + e.msg : ''}`).join('\n');
 }
 
-// Whether to show the on-screen overlay. Default ON while we diagnose the
-// playback-after-idle bug; append ?debug=0 to the URL to silence it.
-export function isPlayerDebug(): boolean {
-  if (typeof window === 'undefined') return false;
-  const q = window.location.search;
-  if (q.includes('debug=0')) return false;
-  if (q.includes('debug=1')) return true;
-  try {
-    const v = window.localStorage.getItem('otw_debug');
-    if (v === '0') return false;
-    if (v === '1') return true;
-  } catch {
-    /* ignore */
-  }
-  return true;
+// Initialise once on the client + expose a console toggle for convenience.
+if (typeof window !== 'undefined') {
+  enabled = readInitialEnabled();
+  (window as unknown as { playerDebug?: (on?: boolean) => void }).playerDebug = (on = true) =>
+    setPlayerDebug(on);
 }

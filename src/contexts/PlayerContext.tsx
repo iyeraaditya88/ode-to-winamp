@@ -77,22 +77,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // Mobile browsers block audio until the SDK's element is activated inside a
   // user gesture. Call this from the first tap that starts playback.
   const ensureActivated = useCallback(() => {
-    if (activatedRef.current) {
-      plog('activate', 'skip (already activated)');
-      return;
-    }
+    if (activatedRef.current) return;
     const p = playerRef.current as unknown as { activateElement?: () => Promise<void> } | null;
     if (p?.activateElement) {
       activatedRef.current = true;
-      plog('activate', 'calling activateElement()');
-      p.activateElement()
-        .then(() => plog('activate', 'activateElement ok'))
-        .catch((e) => {
-          activatedRef.current = false;
-          plog('activate', `activateElement FAILED: ${String(e).slice(0, 80)}`);
-        });
-    } else {
-      plog('activate', `no activateElement (player=${!!playerRef.current})`);
+      plog('activate', 'activateElement()');
+      p.activateElement().catch(() => {
+        activatedRef.current = false;
+        plog('activate', 'activateElement FAILED');
+      });
     }
   }, []);
 

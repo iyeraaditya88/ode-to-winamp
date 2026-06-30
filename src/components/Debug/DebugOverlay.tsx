@@ -6,11 +6,14 @@ import {
   getPlayerLogs,
   clearPlayerLogs,
   subscribePlayerLogs,
+  subscribePlayerDebug,
   isPlayerDebug,
+  setPlayerDebug,
 } from '@/lib/playerLog';
 
-// On-screen, copyable player-event log. Collapsed to a small chip by default;
-// tap to expand. Visible only when isPlayerDebug() (default on; ?debug=0 hides).
+// On-screen, copyable player-event log. Renders nothing unless debug is on
+// (see playerLog.ts for how to toggle). Reacts live when toggled at runtime, so
+// it appears/disappears without a reload.
 export default function DebugOverlay() {
   const [enabled, setEnabled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -18,10 +21,13 @@ export default function DebugOverlay() {
   const [copied, setCopied] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Track the debug flag (initial + live toggles).
   useEffect(() => {
     setEnabled(isPlayerDebug());
+    return subscribePlayerDebug(() => setEnabled(isPlayerDebug()));
   }, []);
 
+  // Re-render as new log lines arrive (only while enabled).
   useEffect(() => {
     if (!enabled) return;
     return subscribePlayerLogs(() => force((n) => n + 1));
@@ -31,7 +37,28 @@ export default function DebugOverlay() {
     if (open && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   });
 
-  if (!enabled) return null;
+  // Always-present, invisible corner zone: triple-tap (within 700ms) toggles the
+  // trace on/off — the only enable path that works inside an installed PWA where
+  // the URL bar and console aren't reachable.
+  const tapTimes = useRef<number[]>([]);
+  const cornerTap = () => {
+    const now = Date.now();
+    tapTimes.current = [...tapTimes.current, now].filter((t) => now - t < 700);
+    if (tapTimes.current.length >= 3) {
+      tapTimes.current = [];
+      setPlayerDebug(!isPlayerDebug());
+    }
+  };
+  const cornerZone = (
+    <div
+      onClick={cornerTap}
+      aria-hidden
+      className="fixed bottom-0 right-0 z-[100] h-5 w-5"
+      style={{ background: 'transparent' }}
+    />
+  );
+
+  if (!enabled) return cornerZone;
 
   const logs = getPlayerLogs();
 
@@ -88,6 +115,12 @@ export default function DebugOverlay() {
           </button>
           <button onClick={() => setOpen(false)} className="px-2 py-0.5 rounded border border-white/20 text-white/70">
             hide
+          </button>
+          <button
+            onClick={() => setPlayerDebug(false)}
+            className="px-2 py-0.5 rounded border border-red-400/40 text-red-300"
+          >
+            off
           </button>
         </div>
       </div>
