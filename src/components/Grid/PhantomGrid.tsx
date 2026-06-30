@@ -90,6 +90,21 @@ const ENTRANCE_DURATION = 1.3; // seconds for the burst-into-tiles reveal
 // plays on a genuine reload.
 let gridHasEntered = false;
 
+// Rough GPU-tier guess from CPU cores — the best easily-available, privacy-safe
+// proxy in-browser (the actual GPU string is masked). Apple Silicon: M1/base ≈ 8
+// cores, Pro/Max ≈ 10–16. Lower-tier machines open at a TIGHTER default zoom so
+// the overview doesn't load enough tiles to pressure the GPU into losing the
+// WebGL context (which was re-blasting the grid on an M1 Air, but not an M3 Pro).
+// The full grand overview is still reachable by scrolling/pinching out.
+function isHighGpuTier(): boolean {
+  if (typeof navigator === 'undefined') return true;
+  return (navigator.hardwareConcurrency || 8) >= 10;
+}
+function defaultZoomOut(mobile: boolean): number {
+  if (isHighGpuTier()) return mobile ? 20 : 24; // grand overview
+  return mobile ? 14 : 16; // moderate — far fewer tiles loaded
+}
+
 interface GridSceneProps {
   songs: SpotifyTrack[];
   onPlay: (track: SpotifyTrack) => void;
@@ -131,9 +146,9 @@ function GridScene({ songs, onPlay, onTileMenu, currentTrackId, distortionRef, b
   const ambient = useRef({ x: 0, y: 0 });
   const hoveredTile = useRef<number>(-1);
   const entranceStart = useRef<number>(-1); // clock time the burst reveal began
-  // Open fully zoomed OUT — the grand curved overview of the whole field — and
-  // let the user scroll/pinch in from there.
-  const zoomRef = useRef(ZOOM_MAX); // target camera z (scroll/pinch zoom level)
+  // Open zoomed out — the grand overview on capable GPUs, a tighter view on
+  // weaker ones (see defaultZoomOut). The user can scroll/pinch from there.
+  const zoomRef = useRef(defaultZoomOut(isMobile)); // target camera z
   const pinchingRef = useRef(false); // a two-finger pinch is in progress
 
   // Keyboard selection cursor: a focus ring hops album-to-album with the arrow
@@ -704,17 +719,17 @@ function PhantomGrid({ songs, onPlay, onTileMenu, currentTrackId, isPlaying = fa
       <Canvas
         frameloop={live ? 'always' : 'never'}
         camera={{
-          // Match the default fully-zoomed-out level (ZOOM_MAX in GridScene) so
-          // the grid opens at the overview with no initial dolly.
-          position: [0, 0, isMobile ? 20 : 24],
+          // Match GridScene's default zoom (capability-aware) so the grid opens
+          // at the right level with no initial dolly.
+          position: [0, 0, defaultZoomOut(isMobile)],
           fov: 45,
           near: 0.1,
           far: 100,
         }}
-        // Antialiasing + high DPR are the biggest mobile GPU costs; album tiles
-        // are small on phones, so cap DPR at 1.5 and drop MSAA there.
+        // Antialiasing + high DPR are the biggest GPU costs; cap DPR at 1.5 on
+        // phones and lower-tier GPUs (and drop MSAA on phones) to ease pressure.
         gl={{ antialias: !isMobile, alpha: true, powerPreference: 'high-performance' }}
-        dpr={isMobile ? [1, 1.5] : [1, 2]}
+        dpr={isMobile || !isHighGpuTier() ? [1, 1.5] : [1, 2]}
         onCreated={({ gl }) => {
           // Under GPU pressure in a browser tab the context can be lost; calling
           // preventDefault lets the browser RESTORE it (otherwise it stays blank).
