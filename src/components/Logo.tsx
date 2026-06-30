@@ -5,16 +5,21 @@ import { LOGO_WAVEFORM_D, LOGO_GRADIENT } from './logoPath';
 
 interface LogoProps {
   size?: number;
+  /** Adds a soft outer halo around the whole badge. */
   glow?: boolean;
   className?: string;
 }
 
-/** The Ode to Winamp wordmark — a gradient ring with an audio waveform. */
-export default function Logo({ size = 24, glow = true, className = '' }: LogoProps) {
+/** The Ode to Winamp mark — a rich, glassy badge: a gradient ring with a neon
+ *  audio waveform over a vignetted disc, with a specular highlight. */
+export default function Logo({ size = 24, glow = false, className = '' }: LogoProps) {
   const raw = useId().replace(/:/g, '');
   const lg = `lg-${raw}`;
+  const disc = `disc-${raw}`;
   const rg = `rg-${raw}`;
-  const gl = `gl-${raw}`;
+  const spec = `spec-${raw}`;
+  const neon = `neon-${raw}`;
+  const halo = `halo-${raw}`;
   return (
     <svg
       width={size}
@@ -30,30 +35,65 @@ export default function Logo({ size = 24, glow = true, className = '' }: LogoPro
           <stop offset="0.5" stopColor={LOGO_GRADIENT[1]} />
           <stop offset="1" stopColor={LOGO_GRADIENT[2]} />
         </linearGradient>
-        {/* Subtle brand-coloured glow disc behind the mark — adds depth/richness. */}
-        <radialGradient id={rg} cx="0.5" cy="0.42" r="0.62">
-          <stop offset="0" stopColor="#ff9a5c" stopOpacity="0.26" />
-          <stop offset="0.55" stopColor="#b87fb0" stopOpacity="0.12" />
+        <radialGradient id={disc} cx="0.5" cy="0.38" r="0.78">
+          <stop offset="0" stopColor="#262430" />
+          <stop offset="0.6" stopColor="#141318" />
+          <stop offset="1" stopColor="#09090b" />
+        </radialGradient>
+        <radialGradient id={rg} cx="0.5" cy="0.46" r="0.6">
+          <stop offset="0" stopColor="#ff9a5c" stopOpacity="0.32" />
+          <stop offset="0.5" stopColor="#b87fb0" stopOpacity="0.16" />
           <stop offset="1" stopColor="#45a8ff" stopOpacity="0" />
         </radialGradient>
+        <radialGradient id={spec} cx="0.5" cy="0.16" r="0.5">
+          <stop offset="0" stopColor="#ffffff" stopOpacity="0.20" />
+          <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+        </radialGradient>
+        {/* Neon glow behind the waveform — the crisp stroke is drawn on top, so it
+            glows without going blurry. */}
+        <filter id={neon} x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="3.4" result="b" />
+          <feMerge>
+            <feMergeNode in="b" />
+            <feMergeNode in="b" />
+          </feMerge>
+        </filter>
         {glow && (
-          // A soft outer glow that does NOT blur the crisp strokes (drop-shadow only).
-          <filter id={gl} x="-40%" y="-40%" width="180%" height="180%">
-            <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#b87fb0" floodOpacity="0.6" />
+          <filter id={halo} x="-40%" y="-40%" width="180%" height="180%">
+            <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#b87fb0" floodOpacity="0.55" />
           </filter>
         )}
       </defs>
-      {/* Flat glow disc (no stroke) so it never softens the lines. */}
-      <circle cx="100" cy="100" r="88" fill={`url(#${rg})`} />
-      <g
-        filter={glow ? `url(#${gl})` : undefined}
-        fill="none"
-        stroke={`url(#${lg})`}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="100" cy="100" r="78" strokeWidth="7" />
-        <path d={LOGO_WAVEFORM_D} strokeWidth="6" />
+
+      <g filter={glow ? `url(#${halo})` : undefined}>
+        {/* glossy disc + brand glow */}
+        <circle cx="100" cy="100" r="92" fill={`url(#${disc})`} />
+        <circle cx="100" cy="100" r="88" fill={`url(#${rg})`} />
+        {/* neon glow copy of the waveform */}
+        <g
+          fill="none"
+          stroke={`url(#${lg})`}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          filter={`url(#${neon})`}
+          opacity="0.85"
+        >
+          <path d={LOGO_WAVEFORM_D} strokeWidth="6" />
+        </g>
+        {/* gradient ring + glass highlight ring */}
+        <circle cx="100" cy="100" r="78" fill="none" stroke={`url(#${lg})`} strokeWidth="7" />
+        <circle cx="100" cy="100" r="74.2" fill="none" stroke="#ffffff" strokeOpacity="0.13" strokeWidth="1.4" />
+        {/* crisp waveform on top */}
+        <path
+          d={LOGO_WAVEFORM_D}
+          fill="none"
+          stroke={`url(#${lg})`}
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {/* specular highlight */}
+        <ellipse cx="100" cy="56" rx="64" ry="34" fill={`url(#${spec})`} />
       </g>
     </svg>
   );
