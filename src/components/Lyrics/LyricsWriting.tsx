@@ -34,7 +34,9 @@ export default function LyricsWriting({ className = '' }: { className?: string }
             {/* bright ink that writes over the ghost left-to-right */}
             <span
               className="lyric-ink absolute inset-0 select-none text-[#00b4b4]/80"
-              style={{ animationDelay: `${i * 1.08}s` }}
+              // i × (18% of the 12s cycle) keeps each line's reveal in step with
+              // the pen sweeping that line.
+              style={{ animationDelay: `${i * 2.16}s` }}
             >
               {line}
             </span>

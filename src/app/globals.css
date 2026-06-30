@@ -234,7 +234,9 @@ input[type='range']::-moz-range-thumb {
   100% { clip-path: inset(0 100% 0 0); }
 }
 .lyric-ink {
-  animation: lyric-ink 6s linear infinite both;
+  /* Slow, calligraphic pace — each line's stroke takes its 18% slot of 12s ≈ 2.2s.
+     A line's animation-delay (i × 2.16s) is set inline in LyricsWriting. */
+  animation: lyric-ink 12s linear infinite both;
 }
 
 @keyframes lyric-pen {
@@ -251,7 +253,7 @@ input[type='range']::-moz-range-thumb {
   100% { top: 78px; left: 88%; opacity: 0; }
 }
 .lyric-pen {
-  animation: lyric-pen 6s linear infinite both;
+  animation: lyric-pen 12s linear infinite both;
 }
 @media (prefers-reduced-motion: reduce) {
   .lyric-ink {
