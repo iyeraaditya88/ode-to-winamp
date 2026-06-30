@@ -5,11 +5,14 @@
 // being hand-written while we fetch them. Pure CSS (see globals.css) so it's
 // cheap and keeps animating regardless of React render timing.
 
+// Abstract pseudo-lyric syllables — meant to read as faint, half-formed words
+// being written, NOT as a legible message. A light blur keeps them suggestive
+// but not quite readable.
 const GHOST_LINES = [
-  'catching the first faint words',
-  'letting the melody speak',
-  'tracing each line by hand',
-  'the chorus comes into view',
+  'ne sara la mio canti',
+  'velada sonu mara te lae',
+  'illa noche verda sol',
+  'amaru kanle si do re',
 ];
 
 const ROW_H = 26; // px — must match the lyric-pen keyframe top steps in globals.css
@@ -27,7 +30,8 @@ export default function LyricsWriting({ className = '' }: { className?: string }
           <div
             key={i}
             className="relative font-serif text-base italic sm:text-lg"
-            style={{ height: ROW_H, lineHeight: `${ROW_H}px` }}
+            // Soft blur → the strokes read as words without being legible.
+            style={{ height: ROW_H, lineHeight: `${ROW_H}px`, filter: 'blur(0.7px)' }}
           >
             {/* faint ghost — always visible, so there's text even between strokes */}
             <span className="select-none text-white/[0.07]">{line}</span>
