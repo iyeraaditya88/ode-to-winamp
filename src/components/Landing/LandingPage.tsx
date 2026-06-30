@@ -32,6 +32,7 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
   const [queuedToast, setQueuedToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
   const [tileMenu, setTileMenu] = useState<{ track: SpotifyTrack; x: number; y: number } | null>(null);
+  const tileMenuRef = useRef<HTMLDivElement>(null);
 
   // Memoised so a stable array feeds the freeze effect + grid (avoids a fresh
   // identity on every render churning dependent hooks).
@@ -98,16 +99,29 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
   // Dismiss the tile menu on any outside interaction or Escape.
   useEffect(() => {
     if (!tileMenu) return;
-    const close = () => setTileMenu(null);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
+    const onDownCapture = (e: PointerEvent) => {
+      const t = e.target as HTMLElement | null;
+      // Clicks inside the menu act normally (e.g. the "Add to queue" button).
+      if (t && tileMenuRef.current?.contains(t)) return;
+      // A primary click on the grid canvas should ONLY dismiss the menu — swallow
+      // it in the capture phase so the grid's own handler never fires and plays a
+      // tile. (Capture runs before the canvas's bubble-phase pointerdown listener.)
+      if (t && t.tagName === 'CANVAS' && e.button === 0) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      setTileMenu(null);
     };
-    window.addEventListener('pointerdown', close);
-    window.addEventListener('wheel', close, { passive: true });
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTileMenu(null);
+    };
+    const onWheel = () => setTileMenu(null);
+    window.addEventListener('pointerdown', onDownCapture, true);
+    window.addEventListener('wheel', onWheel, { passive: true });
     window.addEventListener('keydown', onKey);
     return () => {
-      window.removeEventListener('pointerdown', close);
-      window.removeEventListener('wheel', close);
+      window.removeEventListener('pointerdown', onDownCapture, true);
+      window.removeEventListener('wheel', onWheel);
       window.removeEventListener('keydown', onKey);
     };
   }, [tileMenu]);
@@ -128,13 +142,12 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
       {/* Right-click tile menu */}
       {tileMenu && (
         <div
+          ref={tileMenuRef}
           className="fixed z-50 min-w-[180px] max-w-[240px] rounded-md border border-white/10 bg-[#0d0d0d]/95 backdrop-blur-md shadow-xl py-1 font-mono"
           style={{
             left: Math.min(tileMenu.x, (typeof window !== 'undefined' ? window.innerWidth : 9999) - 250),
             top: Math.min(tileMenu.y, (typeof window !== 'undefined' ? window.innerHeight : 9999) - 110),
           }}
-          // Keep clicks inside the menu from bubbling to the window close handler.
-          onPointerDown={(e) => e.stopPropagation()}
         >
           <div className="px-3 py-1.5 text-[10px] uppercase tracking-widest text-white/40 truncate">
             {tileMenu.track.name}
