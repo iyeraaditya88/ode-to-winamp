@@ -17,12 +17,13 @@ function posMod(n: number, m: number) {
   return ((n % m) + m) % m;
 }
 
-// Cap the album-art cache so a long pan across a big library can't grow VRAM
-// without bound (640px textures are ~4.5× the bytes of 300px). Kept above the
-// full-zoom-out tile count (~170 on desktop) so the whole on-screen field stays
-// cached; eviction only fires while panning — which re-touches every on-screen
-// tile first — so the least-recently-used victim is always off-screen art.
-const TEXTURE_CACHE_CAP = 240;
+// Cap the album-art cache so panning a big library can't grow VRAM without
+// bound. Kept just above the full-zoom-out tile count (~170 desktop) so the whole
+// on-screen field stays cached; eviction only fires while panning — which
+// re-touches every on-screen tile first — so the LRU victim is always off-screen
+// art. At the overview tiles load at 300px (see hires gating), so VRAM stays
+// modest (~85MB) even full of textures.
+const TEXTURE_CACHE_CAP = 200;
 
 /** Shared, lazily-populated album-art texture cache (LRU-bounded). */
 function useTextureCache() {
@@ -81,6 +82,13 @@ interface TileData {
 }
 
 const ENTRANCE_DURATION = 1.3; // seconds for the burst-into-tiles reveal
+
+// Module-level so it survives a remount (e.g. a WebGL context loss/restore, which
+// happens under GPU pressure in a browser tab): the burst-in entrance plays ONCE
+// per page load, never again, so a context recovery doesn't re-blast the tiles.
+// A real page reload re-imports this module and resets it, so the intro still
+// plays on a genuine reload.
+let gridHasEntered = false;
 
 interface GridSceneProps {
   songs: SpotifyTrack[];
@@ -498,9 +506,14 @@ function GridScene({ songs, onPlay, onTileMenu, currentTrackId, distortionRef, b
     camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetZ, 0.12);
 
     // Entrance: once the logo bursts, explode tiles outward from the center.
-    if (burst && entranceStart.current < 0) entranceStart.current = time;
+    // If we've already entered once this page load, start the clock in the past
+    // so globalP is 1 immediately — tiles appear settled, no replayed burst.
+    if (burst && entranceStart.current < 0) {
+      entranceStart.current = gridHasEntered ? time - ENTRANCE_DURATION - 1 : time;
+    }
     const globalP =
       entranceStart.current < 0 ? 0 : Math.min(1, (time - entranceStart.current) / ENTRANCE_DURATION);
+    if (globalP >= 1) gridHasEntered = true;
     const maxDist = Math.max(1, Math.hypot(viewport.width / 2, viewport.height / 2));
     // Inertia: keep gliding after release, damping velocity toward 0 at 0.1.
     // When the keyboard cursor is active, ease the pan to centre the selection
@@ -562,14 +575,16 @@ function GridScene({ songs, onPlay, onTileMenu, currentTrackId, distortionRef, b
       if (content !== t.contentIndex) {
         t.contentIndex = content;
         const track = songs[content];
-        // Spotify orders images largest-first (640 → 300 → 64). Desktop tiles are
-        // large and rendered at up to DPR 2, so use the 640px art; phones have
-        // small, dense tiles and tighter VRAM, so the 300px stays sharp enough
-        // while saving memory + bandwidth.
+        // Spotify orders images largest-first (640 → 300 → 64). Use the 640px art
+        // only when zoomed IN (few, large tiles); at the zoomed-out overview the
+        // ~170 small tiles would pin ~370MB of VRAM (640px is ~4.5× the bytes of
+        // 300px), which under GPU pressure in a browser tab was losing the WebGL
+        // context and re-blasting the grid. Small tiles look fine at 300px.
         const imgs = track?.album.images;
-        const url = isMobile
-          ? imgs?.[1]?.url ?? imgs?.[0]?.url ?? imgs?.[2]?.url
-          : imgs?.[0]?.url ?? imgs?.[1]?.url ?? imgs?.[2]?.url;
+        const hires = !isMobile && zoomRef.current < 13;
+        const url = hires
+          ? imgs?.[0]?.url ?? imgs?.[1]?.url ?? imgs?.[2]?.url
+          : imgs?.[1]?.url ?? imgs?.[0]?.url ?? imgs?.[2]?.url;
         const tex = getTexture(url) ?? placeholder;
         if (tex !== t.material.map) {
           t.material.map = tex;
@@ -700,6 +715,15 @@ function PhantomGrid({ songs, onPlay, onTileMenu, currentTrackId, isPlaying = fa
         // are small on phones, so cap DPR at 1.5 and drop MSAA there.
         gl={{ antialias: !isMobile, alpha: true, powerPreference: 'high-performance' }}
         dpr={isMobile ? [1, 1.5] : [1, 2]}
+        onCreated={({ gl }) => {
+          // Under GPU pressure in a browser tab the context can be lost; calling
+          // preventDefault lets the browser RESTORE it (otherwise it stays blank).
+          gl.domElement.addEventListener(
+            'webglcontextlost',
+            (e) => e.preventDefault(),
+            false
+          );
+        }}
       >
         <color attach="background" args={['#080808']} />
         <GridScene
