@@ -18,11 +18,11 @@ function posMod(n: number, m: number) {
 }
 
 // Cap the album-art cache so a long pan across a big library can't grow VRAM
-// without bound (640px textures are ~4.5× the bytes of 300px). The recycled tile
-// pool maxes out around ~110 tiles, and eviction only fires while panning — which
-// re-touches every on-screen tile first — so the least-recently-used victim is
-// always off-screen art, safe to dispose.
-const TEXTURE_CACHE_CAP = 200;
+// without bound (640px textures are ~4.5× the bytes of 300px). Kept above the
+// full-zoom-out tile count (~170 on desktop) so the whole on-screen field stays
+// cached; eviction only fires while panning — which re-touches every on-screen
+// tile first — so the least-recently-used victim is always off-screen art.
+const TEXTURE_CACHE_CAP = 240;
 
 /** Shared, lazily-populated album-art texture cache (LRU-bounded). */
 function useTextureCache() {
@@ -105,7 +105,11 @@ function GridScene({ songs, onPlay, currentTrackId, distortionRef, burst, onRead
   const REST_DIST = isMobile ? 0.18 : 0.12;
   const DRAG_DIST = isMobile ? 0.34 : 0.26;
   const ZOOM_MIN = isMobile ? 5.5 : 6.5; // most zoomed-in (camera closest)
-  const ZOOM_MAX = isMobile ? 13 : 15; // most zoomed-out (camera farthest)
+  // Most zoomed-OUT: pulled far enough back to reveal a grand, sweeping curved
+  // wall of album art (the lens distortion reads stronger the more is in view).
+  // The recycled tile pool auto-sizes to this, and TEXTURE_CACHE_CAP is set above
+  // the resulting tile count so nothing on screen gets evicted at full zoom-out.
+  const ZOOM_MAX = isMobile ? 20 : 24; // most zoomed-out (camera farthest)
 
   // Drag / inertia state (kept in refs to avoid re-renders).
   const pan = useRef({ x: 0, y: 0 });
