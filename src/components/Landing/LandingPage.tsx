@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useLikedSongs } from '@/hooks/useLikedSongs';
 import { useSearch } from '@/hooks/useSearch';
@@ -24,11 +24,13 @@ interface LandingPageProps {
 export default function LandingPage({ burst = true, onGridReady }: LandingPageProps) {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error } = useLikedSongs();
   const { query, setQuery, results: searchResults, isLoading: searchLoading } = useSearch();
-  const { playTrack, currentTrack, isPlaying, deviceId, showNowPlaying, playerError, retryPlayer } = usePlayer();
+  const { playTrack, queueTrack, currentTrack, isPlaying, deviceId, showNowPlaying, playerError, retryPlayer } = usePlayer();
   const [searchOpen, setSearchOpen] = useState(false);
   const [recognizeOpen, setRecognizeOpen] = useState(false);
   const [musicTasteOpen, setMusicTasteOpen] = useState(false);
   const [frozenSongs, setFrozenSongs] = useState<SpotifyTrack[] | null>(null);
+  const [queuedToast, setQueuedToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
 
   // Memoised so a stable array feeds the freeze effect + grid (avoids a fresh
   // identity on every render churning dependent hooks).
@@ -76,6 +78,17 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
     [playTrack, gridSongs]
   );
 
+  // Right-click a grid tile → queue it to play next, with a brief confirmation.
+  const handleQueue = useCallback(
+    (track: SpotifyTrack) => {
+      queueTrack(track);
+      setQueuedToast(track.name);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setQueuedToast(null), 2200);
+    },
+    [queueTrack]
+  );
+
   // Playing from search queues the search results, so Next/Prev keep exploring
   // the results rather than jumping back to the liked-songs grid.
   const handlePlaySearch = useCallback(
@@ -88,11 +101,19 @@ export default function LandingPage({ burst = true, onGridReady }: LandingPagePr
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-[#080808]">
       <DebugOverlay />
+
+      {/* "Added to queue" confirmation after a right-click on the grid */}
+      {queuedToast && (
+        <div className="pointer-events-none fixed top-20 left-1/2 -translate-x-1/2 z-40 rounded-sm border border-[#00b4b4]/30 bg-black/80 backdrop-blur-sm px-4 py-2 text-xs font-mono text-white/85">
+          <span className="text-[#00b4b4]">Queued ·</span> {queuedToast}
+        </div>
+      )}
       {/* WebGL draggable sphere grid lives at z-0 behind everything */}
       {gridSongs.length > 0 && (
         <PhantomGrid
           songs={gridSongs}
           onPlay={handlePlay}
+          onQueue={handleQueue}
           currentTrackId={currentTrack?.id}
           isPlaying={isPlaying}
           burst={burst}

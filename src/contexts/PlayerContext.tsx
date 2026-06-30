@@ -15,6 +15,7 @@ interface PlayerState {
   playerError: string | null;
   queue: SpotifyTrack[];
   currentIndex: number;
+  userQueue: SpotifyTrack[]; // explicitly queued "play next" tracks (drain before the context continues)
   shuffle: boolean;
   showLyrics: boolean;
   showEqualizer: boolean;
@@ -31,6 +32,7 @@ interface PlayerActions {
   setShowNowPlaying: (v: boolean) => void;
   toggleShuffle: () => void;
   playTrack: (track: SpotifyTrack, context?: SpotifyTrack[]) => void;
+  queueTrack: (track: SpotifyTrack) => void; // add to the "play next" queue
   playNext: () => void;
   playPrev: () => void;
   upcoming: () => SpotifyTrack[];
@@ -49,6 +51,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [playerError, setPlayerError] = useState<string | null>(null);
   const [queue, setQueue] = useState<SpotifyTrack[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
+  const [userQueue, setUserQueue] = useState<SpotifyTrack[]>([]);
   const [shuffle, setShuffle] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
   const [showEqualizer, setShowEqualizer] = useState(false);
@@ -60,6 +63,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // Latest-value refs so the SDK listeners (registered once) can reach state.
   const queueRef = useRef<SpotifyTrack[]>([]);
   const indexRef = useRef(-1);
+  const userQueueRef = useRef<SpotifyTrack[]>([]);
   const shuffleRef = useRef(false);
   const deviceIdRef = useRef<string | null>(null);
   const advancingRef = useRef(false);
@@ -272,7 +276,24 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     [playUri, showTrackOptimistically]
   );
 
+  // Add a track to the "play next" queue. These drain (FIFO) before the grid
+  // context continues, and take priority over shuffle.
+  const queueTrack = useCallback((track: SpotifyTrack) => {
+    userQueueRef.current = [...userQueueRef.current, track];
+    setUserQueue(userQueueRef.current);
+  }, []);
+
   const playNext = useCallback(() => {
+    // User-queued tracks play first and DON'T move the context cursor, so once
+    // the queue drains playback resumes the grid sequence where it left off.
+    if (userQueueRef.current.length > 0) {
+      const [next, ...rest] = userQueueRef.current;
+      userQueueRef.current = rest;
+      setUserQueue(rest);
+      showTrackOptimistically(next);
+      playUri(next.uri);
+      return;
+    }
     const q = queueRef.current;
     if (q.length === 0) return;
     let i: number;
@@ -287,7 +308,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       i = (indexRef.current + 1) % q.length;
     }
     playIndex(i);
-  }, [playIndex]);
+  }, [playIndex, showTrackOptimistically, playUri]);
 
   const playPrev = useCallback(() => {
     const q = queueRef.current;
@@ -710,8 +731,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const upcoming = useCallback(() => {
     const q = queueRef.current;
     const i = indexRef.current;
-    if (q.length === 0 || i < 0) return [];
-    return q.slice(i + 1, i + 1 + 30);
+    const ctx = q.length === 0 || i < 0 ? [] : q.slice(i + 1, i + 1 + 30);
+    // "Play next" queue jumps the line ahead of the context sequence.
+    return [...userQueueRef.current, ...ctx].slice(0, 30);
   }, []);
 
   // Play/pause with full mobile recovery. Shared by the UI controls AND the OS
@@ -792,6 +814,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     playerError,
     queue,
     currentIndex,
+    userQueue,
     shuffle,
     showLyrics,
     showEqualizer,
@@ -809,6 +832,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setShowNowPlaying: (v) => setShowNowPlaying(v),
     toggleShuffle: () => setShuffle((p) => !p),
     playTrack,
+    queueTrack,
     playNext,
     playPrev,
     upcoming,
