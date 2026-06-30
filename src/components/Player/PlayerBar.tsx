@@ -10,6 +10,7 @@ import ProgressBar from './ProgressBar';
 import VolumeControl from './VolumeControl';
 import Equalizer from '@/components/Equalizer/Equalizer';
 import LyricsPanel from '@/components/Lyrics/LyricsPanel';
+import QueuePanel from '@/components/Queue/QueuePanel';
 import LikeButton from './LikeButton';
 import NowPlaying from './NowPlaying';
 
@@ -24,10 +25,12 @@ export default function PlayerBar() {
     volume,
     shuffle,
     showLyrics,
+    showQueue,
     setIsPlaying,
     setPosition,
     setVolume,
     toggleLyrics,
+    toggleQueue,
     toggleShuffle,
     playNext,
     playPrev,
@@ -72,6 +75,7 @@ export default function PlayerBar() {
   return (
     <>
       <LyricsPanel isOpen={showLyrics} onClose={toggleLyrics} track={currentTrack} positionMs={position} />
+      <QueuePanel isOpen={showQueue} onClose={toggleQueue} />
       {sheetMounted && <NowPlaying progress={sheetProgress} onCollapse={closeSheet} />}
 
       <m.div
@@ -276,6 +280,18 @@ export default function PlayerBar() {
               </button>
 
               <LikeButton track={currentTrack} />
+
+              <button
+                onClick={toggleQueue}
+                title="Queue"
+                className={`transition-colors ${showQueue ? 'text-[#00b4b4]' : 'text-white/55 hover:text-white/80'}`}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M3 6h13M3 12h13M3 18h7" />
+                  <path d="M16 14v6.5" />
+                  <circle cx="19" cy="20.5" r="2.4" fill="currentColor" stroke="none" />
+                </svg>
+              </button>
 
               <button
                 onClick={toggleLyrics}

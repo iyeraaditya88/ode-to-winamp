@@ -18,6 +18,7 @@ interface PlayerState {
   userQueue: SpotifyTrack[]; // explicitly queued "play next" tracks (drain before the context continues)
   shuffle: boolean;
   showLyrics: boolean;
+  showQueue: boolean;
   showEqualizer: boolean;
   showNowPlaying: boolean;
 }
@@ -27,12 +28,15 @@ interface PlayerActions {
   setPosition: (ms: number) => void;
   setVolume: (v: number) => void;
   toggleLyrics: () => void;
+  toggleQueue: () => void;
   toggleEqualizer: () => void;
   toggleNowPlaying: () => void;
   setShowNowPlaying: (v: boolean) => void;
   toggleShuffle: () => void;
   playTrack: (track: SpotifyTrack, context?: SpotifyTrack[]) => void;
   queueTrack: (track: SpotifyTrack) => void; // add to the "play next" queue
+  removeFromQueue: (index: number) => void;
+  reorderQueue: (from: number, to: number) => void;
   playNext: () => void;
   playPrev: () => void;
   upcoming: () => SpotifyTrack[];
@@ -54,6 +58,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [userQueue, setUserQueue] = useState<SpotifyTrack[]>([]);
   const [shuffle, setShuffle] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
+  const [showQueue, setShowQueue] = useState(false);
   const [showEqualizer, setShowEqualizer] = useState(false);
   const [showNowPlaying, setShowNowPlaying] = useState(false);
 
@@ -99,6 +104,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { shuffleRef.current = shuffle; }, [shuffle]);
   useEffect(() => { deviceIdRef.current = deviceId; }, [deviceId]);
   useEffect(() => { currentTrackRef.current = currentTrack; }, [currentTrack]);
+  const showQueueRef = useRef(false);
+  useEffect(() => { showQueueRef.current = showQueue; }, [showQueue]);
 
   // Spotify drops idle web-playback devices after a while, leaving the cached
   // device_id stale. Force a FULL re-register — connect() alone often doesn't
@@ -281,6 +288,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const queueTrack = useCallback((track: SpotifyTrack) => {
     userQueueRef.current = [...userQueueRef.current, track];
     setUserQueue(userQueueRef.current);
+  }, []);
+
+  const removeFromQueue = useCallback((index: number) => {
+    userQueueRef.current = userQueueRef.current.filter((_, i) => i !== index);
+    setUserQueue(userQueueRef.current);
+  }, []);
+
+  const reorderQueue = useCallback((from: number, to: number) => {
+    const q = [...userQueueRef.current];
+    if (from < 0 || from >= q.length || to < 0 || to >= q.length || from === to) return;
+    const [moved] = q.splice(from, 1);
+    q.splice(to, 0, moved);
+    userQueueRef.current = q;
+    setUserQueue(q);
   }, []);
 
   const playNext = useCallback(() => {
@@ -721,7 +742,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       playUri(track.uri);
       // Auto-open the side lyrics panel when a song starts (desktop only — on
       // mobile the side panel would cover the screen; lyrics live in Now Playing).
-      if (typeof window !== 'undefined' && window.innerWidth >= 640) {
+      // Don't steal the slot if the user has the Queue panel open.
+      if (typeof window !== 'undefined' && window.innerWidth >= 640 && !showQueueRef.current) {
         setShowLyrics(true);
       }
     },
@@ -817,6 +839,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     userQueue,
     shuffle,
     showLyrics,
+    showQueue,
     showEqualizer,
     showNowPlaying,
     retryPlayer,
@@ -826,13 +849,23 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       await playerRef.current?.setVolume(v);
       setVolume(v);
     },
-    toggleLyrics: () => setShowLyrics((p) => !p),
+    // Lyrics and Queue share the right-side panel slot, so opening one closes the other.
+    toggleLyrics: () => {
+      setShowQueue(false);
+      setShowLyrics((p) => !p);
+    },
+    toggleQueue: () => {
+      setShowLyrics(false);
+      setShowQueue((p) => !p);
+    },
     toggleEqualizer: () => setShowEqualizer((p) => !p),
     toggleNowPlaying: () => setShowNowPlaying((p) => !p),
     setShowNowPlaying: (v) => setShowNowPlaying(v),
     toggleShuffle: () => setShuffle((p) => !p),
     playTrack,
     queueTrack,
+    removeFromQueue,
+    reorderQueue,
     playNext,
     playPrev,
     upcoming,
