@@ -13,8 +13,8 @@ const X0 = 12;
 const X1 = 188; // tails extend just past the ring
 const WAVE_START = 40;
 const WAVE_END = 160;
-const AMAX = 58;
-const CYCLES = 7;
+const AMAX = 60;
+const CYCLES = 4; // fewer, bolder oscillations so the peaks read crisply even at ~26px
 const N = 320;
 
 function waveformD() {
@@ -35,31 +35,35 @@ function waveformD() {
 const D = waveformD();
 
 // ---- Reusable SVG fragments.
-function defs(idSuffix, glowStd) {
+function defs(idSuffix) {
   return `<defs>
     <linearGradient id="lg${idSuffix}" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="#ff7e42"/>
       <stop offset="0.5" stop-color="#b87fb0"/>
       <stop offset="1" stop-color="#45a8ff"/>
     </linearGradient>
-    <filter id="gl${idSuffix}" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="${glowStd}" result="b"/>
-      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
+    <radialGradient id="rg${idSuffix}" cx="0.5" cy="0.42" r="0.62">
+      <stop offset="0" stop-color="#ff9a5c" stop-opacity="0.26"/>
+      <stop offset="0.55" stop-color="#b87fb0" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#45a8ff" stop-opacity="0"/>
+    </radialGradient>
   </defs>`;
 }
 
+// Crisp (no softening blur). A subtle radial glow disc gives depth/richness, and
+// bolder strokes stay sharp at small sizes.
 function logoBody(idSuffix) {
-  return `<g filter="url(#gl${idSuffix})" fill="none" stroke="url(#lg${idSuffix})" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="${CX}" cy="${CY}" r="78" stroke-width="4"/>
-    <path d="${D}" stroke-width="3.4"/>
+  return `<g fill="none" stroke="url(#lg${idSuffix})" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="${CX}" cy="${CY}" r="88" fill="url(#rg${idSuffix})" stroke="none"/>
+    <circle cx="${CX}" cy="${CY}" r="78" stroke-width="7"/>
+    <path d="${D}" stroke-width="6"/>
   </g>`;
 }
 
 // ---- Favicon (dark disc so it pops on any tab colour).
 const favicon = `<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
   <circle cx="100" cy="100" r="100" fill="#0b0b0b"/>
-  ${defs('f', 2)}
+  ${defs('f')}
   ${logoBody('f')}
 </svg>
 `;
@@ -67,7 +71,7 @@ const favicon = `<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http
 // ---- PWA master: dark square + logo scaled into the maskable safe zone.
 const iconSource = `<svg width="512" height="512" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
   <rect width="200" height="200" fill="#0b0b0b"/>
-  ${defs('p', 2.5)}
+  ${defs('p')}
   <g transform="translate(100,100) scale(0.8) translate(-100,-100)">
     ${logoBody('p')}
   </g>
@@ -86,3 +90,7 @@ fs.writeFileSync(path.join(root, 'src/components/logoPath.ts'), tsFile);
 fs.writeFileSync(path.join(root, 'src/app/icon.svg'), favicon);
 fs.writeFileSync(path.join(root, 'scripts/icon-source.svg'), iconSource);
 console.log('wrote logoPath.ts, icon.svg, icon-source.svg');
+console.log('\nTo (re)rasterise the PWA PNGs from icon-source.svg (macOS):');
+console.log('  qlmanage -t -s 512 -o /tmp/i scripts/icon-source.svg && cp /tmp/i/icon-source.svg.png public/icon-512.png');
+console.log('  qlmanage -t -s 192 -o /tmp/i scripts/icon-source.svg && cp /tmp/i/icon-source.svg.png public/icon-192.png');
+console.log('  qlmanage -t -s 180 -o /tmp/i scripts/icon-source.svg && cp /tmp/i/icon-source.svg.png public/apple-touch-icon.png');
