@@ -398,27 +398,32 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setIsPlaying(!state.paused);
       setPosition(state.position);
       setDuration(state.duration);
-      setCurrentTrack({
-        id: sdkTrack.id ?? '',
-        uri: sdkTrack.uri,
-        name: sdkTrack.name,
-        duration_ms: state.duration,
-        artists: sdkTrack.artists.map((a) => ({ id: a.uri, name: a.name, uri: a.uri })),
-        album: {
-          id: sdkTrack.album.uri,
-          name: sdkTrack.album.name,
-          images: sdkTrack.album.images.map((img) => ({
-            url: img.url,
-            width: img.width ?? 0,
-            height: img.height ?? 0,
-          })),
-          uri: sdkTrack.album.uri,
-          release_date: '',
-        },
-        explicit: false,
-        popularity: 0,
-        preview_url: null,
-      });
+      // Only rebuild currentTrack when the track actually changes. player_state_
+      // changed fires several times a second during playback; recreating the
+      // object each time re-rendered every consumer (and flickered the queue).
+      if (currentTrackRef.current?.uri !== sdkTrack.uri) {
+        setCurrentTrack({
+          id: sdkTrack.id ?? '',
+          uri: sdkTrack.uri,
+          name: sdkTrack.name,
+          duration_ms: state.duration,
+          artists: sdkTrack.artists.map((a) => ({ id: a.uri, name: a.name, uri: a.uri })),
+          album: {
+            id: sdkTrack.album.uri,
+            name: sdkTrack.album.name,
+            images: sdkTrack.album.images.map((img) => ({
+              url: img.url,
+              width: img.width ?? 0,
+              height: img.height ?? 0,
+            })),
+            uri: sdkTrack.album.uri,
+            release_date: '',
+          },
+          explicit: false,
+          popularity: 0,
+          preview_url: null,
+        });
+      }
 
       // End-of-track detection: SDK pauses at position 0 once the single URI
       // finishes (we feed one URI at a time). Advance our own queue.
