@@ -6,6 +6,7 @@ import { useLyrics } from '@/hooks/useLyrics';
 import { useRomanize } from '@/hooks/useRomanize';
 import { hasNonLatin } from '@/lib/romanize';
 import { scrollLineIntoView } from '@/lib/scrollLine';
+import LyricsWriting from './LyricsWriting';
 import type { SpotifyTrack } from '@/types/spotify';
 
 interface LyricsPanelProps {
@@ -81,22 +82,7 @@ export default function LyricsPanel({ isOpen, onClose, track, positionMs }: Lyri
               </p>
             )}
 
-            {track && isLoading && (
-              <div className="py-6">
-                <p className="text-xs text-[#00b4b4]/70 font-mono tracking-wide mb-4 animate-pulse">
-                  Getting the words to the tune…
-                </p>
-                <div className="space-y-2">
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="h-3 rounded bg-white/5 animate-pulse"
-                      style={{ width: `${50 + ((i * 37) % 40)}%` }}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+            {track && isLoading && <LyricsWriting className="py-6" />}
 
             {track && !isLoading && !hasSynced && !plainLyrics && (
               <p className="text-xs text-white/48 font-mono text-center py-8">

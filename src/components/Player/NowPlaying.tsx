@@ -9,6 +9,7 @@ import { useShareTrack } from '@/hooks/useShareTrack';
 import { useRomanize } from '@/hooks/useRomanize';
 import { hasNonLatin } from '@/lib/romanize';
 import { scrollLineIntoView } from '@/lib/scrollLine';
+import LyricsWriting from '@/components/Lyrics/LyricsWriting';
 import { useEqualizerSettings, EQ_THEMES, EQ_STYLES } from '@/hooks/useEqualizerSettings';
 import ProgressBar from './ProgressBar';
 import VolumeControl from './VolumeControl';
@@ -84,9 +85,7 @@ export default function NowPlaying({ progress, onCollapse }: NowPlayingProps) {
     <>
       {!currentTrack && <p className="text-sm text-white/48 font-mono">Play a song to see lyrics</p>}
 
-      {currentTrack && isLoading && (
-        <p className="text-sm text-[#00b4b4]/70 font-mono animate-pulse">Getting the words to the tune…</p>
-      )}
+      {currentTrack && isLoading && <LyricsWriting />}
 
       {currentTrack && !isLoading && !hasSynced && !plainLyrics && (
         <p className="text-sm text-white/48 font-mono">No lyrics found for this track</p>

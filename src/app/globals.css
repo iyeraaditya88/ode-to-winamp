@@ -221,3 +221,59 @@ input[type='range']::-moz-range-thumb {
   height: 0;
   border: none;
 }
+
+/* ── Lyrics "being written" loading animation ──────────────────────────────
+   A pen sweeps line-by-line while each line's ink reveals left-to-right over a
+   faint ghost of the words. CYCLE = 6s; each of 4 lines writes during its 18%
+   slot (so a line's animation-delay is i × 1.08s), the pen runs the same 6s
+   un-delayed and rests in the tail. */
+@keyframes lyric-ink {
+  0% { clip-path: inset(0 100% 0 0); }
+  18% { clip-path: inset(0 0 0 0); }
+  86% { clip-path: inset(0 0 0 0); }
+  100% { clip-path: inset(0 100% 0 0); }
+}
+.lyric-ink {
+  animation: lyric-ink 6s linear infinite both;
+}
+
+@keyframes lyric-pen {
+  0% { top: 0; left: 1%; opacity: 0; }
+  2% { opacity: 1; }
+  18% { top: 0; left: 88%; }
+  18.6% { top: 26px; left: 1%; }
+  36% { top: 26px; left: 88%; }
+  36.6% { top: 52px; left: 1%; }
+  54% { top: 52px; left: 88%; }
+  54.6% { top: 78px; left: 1%; }
+  72% { top: 78px; left: 88%; opacity: 1; }
+  84% { opacity: 0; }
+  100% { top: 78px; left: 88%; opacity: 0; }
+}
+.lyric-pen {
+  animation: lyric-pen 6s linear infinite both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lyric-ink {
+    animation: none;
+    clip-path: inset(0 0 0 0);
+  }
+  .lyric-pen,
+  .lyric-dots::after {
+    animation: none;
+  }
+  .lyric-pen {
+    display: none;
+  }
+}
+
+.lyric-dots::after {
+  content: '';
+  animation: lyric-dots 1.6s steps(1, end) infinite;
+}
+@keyframes lyric-dots {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75%, 100% { content: '...'; }
+}
