@@ -520,15 +520,17 @@ function GridScene({ songs, onPlay, onTileMenu, currentTrackId, distortionRef, b
     const targetZ = zoomRef.current + (dragging.current ? DRAG_PUSH : 0);
     camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetZ, 0.12);
 
-    // Entrance: once the logo bursts, explode tiles outward from the center.
-    // If we've already entered once this page load, start the clock in the past
-    // so globalP is 1 immediately — tiles appear settled, no replayed burst.
-    if (burst && entranceStart.current < 0) {
-      entranceStart.current = gridHasEntered ? time - ENTRANCE_DURATION - 1 : time;
+    // Entrance burst — plays ONCE per page load, then globalP is forced to 1 so
+    // nothing can replay it. The render loop sleeps when idle and r3f RESETS its
+    // clock to 0 on wake; keying the entrance off clock time meant every wake
+    // (e.g. a mouse move) rewound globalP through 0→1 and re-exploded the tiles.
+    let globalP = 1;
+    if (!gridHasEntered) {
+      if (burst && entranceStart.current < 0) entranceStart.current = time;
+      globalP =
+        entranceStart.current < 0 ? 0 : Math.min(1, (time - entranceStart.current) / ENTRANCE_DURATION);
+      if (globalP >= 1) gridHasEntered = true;
     }
-    const globalP =
-      entranceStart.current < 0 ? 0 : Math.min(1, (time - entranceStart.current) / ENTRANCE_DURATION);
-    if (globalP >= 1) gridHasEntered = true;
     const maxDist = Math.max(1, Math.hypot(viewport.width / 2, viewport.height / 2));
     // Inertia: keep gliding after release, damping velocity toward 0 at 0.1.
     // When the keyboard cursor is active, ease the pan to centre the selection
