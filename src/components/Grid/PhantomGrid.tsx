@@ -123,8 +123,9 @@ function GridScene({ songs, onPlay, onTileMenu, currentTrackId, distortionRef, b
   const ambient = useRef({ x: 0, y: 0 });
   const hoveredTile = useRef<number>(-1);
   const entranceStart = useRef<number>(-1); // clock time the burst reveal began
-  // Start zoomed out by default (preferred view); user can scroll/pinch to zoom in.
-  const zoomRef = useRef(isMobile ? 11.5 : 13.5); // target camera z (scroll/pinch zoom level)
+  // Open fully zoomed OUT — the grand curved overview of the whole field — and
+  // let the user scroll/pinch in from there.
+  const zoomRef = useRef(ZOOM_MAX); // target camera z (scroll/pinch zoom level)
   const pinchingRef = useRef(false); // a two-finger pinch is in progress
 
   // Keyboard selection cursor: a focus ring hops album-to-album with the arrow
@@ -688,7 +689,9 @@ function PhantomGrid({ songs, onPlay, onTileMenu, currentTrackId, isPlaying = fa
       <Canvas
         frameloop={live ? 'always' : 'never'}
         camera={{
-          position: [0, 0, isMobile ? 11.5 : 13.5],
+          // Match the default fully-zoomed-out level (ZOOM_MAX in GridScene) so
+          // the grid opens at the overview with no initial dolly.
+          position: [0, 0, isMobile ? 20 : 24],
           fov: 45,
           near: 0.1,
           far: 100,
