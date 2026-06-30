@@ -320,6 +320,7 @@ export default function NowPlaying({ progress, onCollapse }: NowPlayingProps) {
                 <div className="h-24 w-full rounded-md border border-white/5 bg-black/30 overflow-hidden">
                   <Equalizer
                     isPlaying={isPlaying}
+                    trackId={currentTrack?.id}
                     theme={settings.theme}
                     style={settings.style}
                     barCount={settings.barCount}

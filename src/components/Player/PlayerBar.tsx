@@ -267,6 +267,7 @@ export default function PlayerBar() {
               >
                 <Equalizer
                   isPlaying={isPlaying}
+                  trackId={currentTrack?.id}
                   theme={settings.theme}
                   style={settings.style}
                   barCount={28}

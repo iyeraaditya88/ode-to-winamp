@@ -12,6 +12,10 @@ function makeFreqFactors(n: number): number[] {
 
 interface EqualizerProps {
   isPlaying: boolean;
+  /** Current track id. When it changes, the bars ramp in from zero so they wake
+   *  up during the playback-start buffer instead of snapping to full height
+   *  before any audio is audible (which read as a delay). */
+  trackId?: string;
   theme?: EqTheme;
   style?: EqStyle;
   barCount?: number;
@@ -19,8 +23,11 @@ interface EqualizerProps {
   className?: string;
 }
 
+const RAMP_MS = 1100; // ramp-in duration, ~ the SDK's stream-start buffer
+
 export default function Equalizer({
   isPlaying,
+  trackId,
   theme = 'winamp',
   style = 'blocks',
   barCount = 32,
@@ -33,6 +40,7 @@ export default function Equalizer({
   const heights = useRef<number[]>([]);
   const peaks = useRef<number[]>([]);
   const peakAt = useRef<number[]>([]);
+  const rampStartRef = useRef(0); // ts the current ramp-in began (0 = no ramp)
 
   // Latest play state read inside the draw loop without rebuilding the effect.
   const isPlayingRef = useRef(isPlaying);
@@ -46,6 +54,15 @@ export default function Equalizer({
     peaks.current = Array(barCount).fill(0);
     peakAt.current = Array(barCount).fill(0);
   }, [barCount]);
+
+  // New track: reset the bars to zero and start the ramp-in. Keyed on trackId
+  // only, so resuming the SAME song (no buffer gap) does NOT re-ramp.
+  useEffect(() => {
+    if (!trackId) return;
+    rampStartRef.current = typeof performance !== 'undefined' ? performance.now() : 0;
+    heights.current = heights.current.map(() => 0);
+    peaks.current = peaks.current.map(() => 0);
+  }, [trackId]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -97,6 +114,13 @@ export default function Equalizer({
       const beatEnv = Math.pow(1 - (t % beatPeriod) / beatPeriod, 2.2);
       const offEnv = Math.pow(1 - ((t + beatPeriod / 2) % beatPeriod) / beatPeriod, 3) * 0.5;
 
+      // Ramp-in envelope: 0→1 over RAMP_MS after a track starts, smoothstepped so
+      // the bars swell up gracefully while the stream buffers, hitting full height
+      // about when audio actually begins.
+      const rampStart = rampStartRef.current;
+      const lin = rampStart === 0 ? 1 : Math.min(1, Math.max(0, (ts - rampStart) / RAMP_MS));
+      const rampEnv = lin * lin * (3 - 2 * lin);
+
       for (let i = 0; i < barCount; i++) {
         // While playing, advance the bars. While paused, freeze them in place
         // (don't decay to zero) so the waveform holds its last frame.
@@ -109,7 +133,8 @@ export default function Equalizer({
               offEnv * (0.35 * bass) +
               shimmer * (0.12 + 0.33 * norm)) *
             usableH *
-            0.95;
+            0.95 *
+            rampEnv;
 
           // Punchy attack on the beat, smoother decay.
           const k = target > heights.current[i] ? 0.5 : 0.16;
