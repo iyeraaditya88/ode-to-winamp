@@ -31,7 +31,7 @@ export const EQ_STYLES: { id: EqStyle; label: string }[] = [
   { id: 'aurora', label: 'Aurora' },
 ];
 
-const DEFAULT: EqSettings = { theme: 'rainbow', style: 'blocks', barCount: 32, barVisualizer: true };
+const DEFAULT: EqSettings = { theme: 'rainbow', style: 'blocks', barCount: 32, barVisualizer: false };
 // Bumped key so the new rainbow-blocks default applies even for returning users.
 const KEY = 'otw_eq_settings_v2';
 
