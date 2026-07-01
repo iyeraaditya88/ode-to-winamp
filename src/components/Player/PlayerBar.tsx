@@ -264,6 +264,26 @@ export default function PlayerBar() {
 
             {/* Right: visualizer + grouped controls + volume — desktop only */}
             <div className="hidden sm:flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+              {/* Visualizer — rendered BEFORE (left of) its toggle so enabling it
+                  fills the empty gap on the left; the toggle and every control to
+                  its right stay put (no layout jump). Wide screens, when enabled. */}
+              {settings.barVisualizer && (
+                <button
+                  onClick={cycleVisualizer}
+                  title="Click to change the visualizer"
+                  className="h-9 w-40 mr-1 overflow-hidden hidden lg:block opacity-90 hover:opacity-100 active:scale-[0.98] transition-all"
+                >
+                  <Equalizer
+                    isPlaying={isPlaying}
+                    trackId={currentTrack?.id}
+                    theme={settings.theme}
+                    style={settings.style}
+                    barCount={26}
+                    className="h-full w-full pointer-events-none"
+                  />
+                </button>
+              )}
+
               {/* Visualizer toggle — turn the bar all-business, or bring the
                   waveform back. Wide screens only, matching the visualizer. */}
               <button
@@ -282,24 +302,6 @@ export default function PlayerBar() {
                   <rect x="17" y="13" width="3" height="7" rx="1.2" />
                 </svg>
               </button>
-
-              {/* Visualizer — decorative, on wide screens only, only when enabled. */}
-              {settings.barVisualizer && (
-                <button
-                  onClick={cycleVisualizer}
-                  title="Click to change the visualizer"
-                  className="h-9 w-40 mx-1 overflow-hidden hidden lg:block opacity-90 hover:opacity-100 active:scale-[0.98] transition-all"
-                >
-                  <Equalizer
-                    isPlaying={isPlaying}
-                    trackId={currentTrack?.id}
-                    theme={settings.theme}
-                    style={settings.style}
-                    barCount={26}
-                    className="h-full w-full pointer-events-none"
-                  />
-                </button>
-              )}
 
               <span className="hidden lg:block w-px h-5 bg-white/10 mx-1" />
 
