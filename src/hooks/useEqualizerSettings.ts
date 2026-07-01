@@ -9,6 +9,7 @@ export interface EqSettings {
   theme: EqTheme;
   style: EqStyle;
   barCount: number;
+  barVisualizer: boolean; // show the visualizer in the desktop player bar
 }
 
 export const EQ_THEMES: { id: EqTheme; label: string; stops: string[] }[] = [
@@ -30,7 +31,7 @@ export const EQ_STYLES: { id: EqStyle; label: string }[] = [
   { id: 'aurora', label: 'Aurora' },
 ];
 
-const DEFAULT: EqSettings = { theme: 'rainbow', style: 'blocks', barCount: 32 };
+const DEFAULT: EqSettings = { theme: 'rainbow', style: 'blocks', barCount: 32, barVisualizer: true };
 // Bumped key so the new rainbow-blocks default applies even for returning users.
 const KEY = 'otw_eq_settings_v2';
 

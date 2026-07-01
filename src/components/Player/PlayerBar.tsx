@@ -264,22 +264,42 @@ export default function PlayerBar() {
 
             {/* Right: visualizer + grouped controls + volume — desktop only */}
             <div className="hidden sm:flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-              {/* Visualizer — decorative, on wide screens only so it never crowds
-                  the controls. */}
+              {/* Visualizer toggle — turn the bar all-business, or bring the
+                  waveform back. Wide screens only, matching the visualizer. */}
               <button
-                onClick={cycleVisualizer}
-                title="Click to change the visualizer"
-                className="h-9 w-40 mr-1 overflow-hidden hidden lg:block opacity-90 hover:opacity-100 active:scale-[0.98] transition-all"
+                onClick={() => update({ barVisualizer: !settings.barVisualizer })}
+                title={settings.barVisualizer ? 'Hide visualizer' : 'Show visualizer'}
+                aria-pressed={settings.barVisualizer}
+                className={`hidden lg:grid place-items-center h-9 w-9 rounded-full transition-colors ${
+                  settings.barVisualizer
+                    ? 'text-[#00b4b4] bg-[#00b4b4]/15'
+                    : 'text-white/60 hover:text-white/90 hover:bg-white/10'
+                }`}
               >
-                <Equalizer
-                  isPlaying={isPlaying}
-                  trackId={currentTrack?.id}
-                  theme={settings.theme}
-                  style={settings.style}
-                  barCount={26}
-                  className="h-full w-full pointer-events-none"
-                />
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="4" y="10" width="3" height="10" rx="1.2" />
+                  <rect x="10.5" y="4" width="3" height="16" rx="1.2" />
+                  <rect x="17" y="13" width="3" height="7" rx="1.2" />
+                </svg>
               </button>
+
+              {/* Visualizer — decorative, on wide screens only, only when enabled. */}
+              {settings.barVisualizer && (
+                <button
+                  onClick={cycleVisualizer}
+                  title="Click to change the visualizer"
+                  className="h-9 w-40 mx-1 overflow-hidden hidden lg:block opacity-90 hover:opacity-100 active:scale-[0.98] transition-all"
+                >
+                  <Equalizer
+                    isPlaying={isPlaying}
+                    trackId={currentTrack?.id}
+                    theme={settings.theme}
+                    style={settings.style}
+                    barCount={26}
+                    className="h-full w-full pointer-events-none"
+                  />
+                </button>
+              )}
 
               <span className="hidden lg:block w-px h-5 bg-white/10 mx-1" />
 
