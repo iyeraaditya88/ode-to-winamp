@@ -262,31 +262,59 @@ export default function PlayerBar() {
               <ProgressBar position={position} duration={duration} onSeek={setPosition} />
             </div>
 
-            {/* Right: equalizer + toggles + volume — desktop only */}
-            <div className="hidden sm:flex items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
+            {/* Right: visualizer + grouped controls + volume — desktop only */}
+            <div className="hidden sm:flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+              {/* Visualizer — decorative, on wide screens only so it never crowds
+                  the controls. */}
               <button
                 onClick={cycleVisualizer}
                 title="Click to change the visualizer"
-                className="h-9 w-44 overflow-hidden hidden md:block opacity-90 hover:opacity-100 active:scale-[0.97] transition-all"
+                className="h-9 w-40 mr-1 overflow-hidden hidden lg:block opacity-90 hover:opacity-100 active:scale-[0.98] transition-all"
               >
                 <Equalizer
                   isPlaying={isPlaying}
                   trackId={currentTrack?.id}
                   theme={settings.theme}
                   style={settings.style}
-                  barCount={28}
+                  barCount={26}
                   className="h-full w-full pointer-events-none"
                 />
               </button>
 
-              <LikeButton track={currentTrack} />
+              <span className="hidden lg:block w-px h-5 bg-white/10 mx-1" />
 
+              {/* Track actions */}
+              <LikeButton
+                track={currentTrack}
+                size={18}
+                className="h-9 w-9 justify-center rounded-full hover:bg-white/10"
+              />
+              <button
+                onClick={() => share(currentTrack)}
+                disabled={!currentTrack}
+                title="Share this song"
+                className="grid place-items-center h-9 w-9 rounded-full text-white/60 hover:text-white/90 hover:bg-white/10 transition-colors disabled:opacity-25 disabled:hover:bg-transparent"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="18" cy="5" r="3" />
+                  <circle cx="6" cy="12" r="3" />
+                  <circle cx="18" cy="19" r="3" />
+                  <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" strokeLinecap="round" />
+                </svg>
+              </button>
+
+              <span className="w-px h-5 bg-white/10 mx-1" />
+
+              {/* Panels */}
               <button
                 onClick={toggleQueue}
                 title="Queue"
-                className={`transition-colors ${showQueue ? 'text-[#00b4b4]' : 'text-white/55 hover:text-white/80'}`}
+                aria-pressed={showQueue}
+                className={`grid place-items-center h-9 w-9 rounded-full transition-colors ${
+                  showQueue ? 'text-[#00b4b4] bg-[#00b4b4]/15' : 'text-white/60 hover:text-white/90 hover:bg-white/10'
+                }`}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <path d="M3 6h13M3 12h13M3 18h7" />
                   <path d="M16 14v6.5" />
                   <circle cx="19" cy="20.5" r="2.4" fill="currentColor" stroke="none" />
@@ -296,26 +324,17 @@ export default function PlayerBar() {
               <button
                 onClick={toggleLyrics}
                 title="Lyrics"
-                className={`transition-colors ${showLyrics ? 'text-[#00b4b4]' : 'text-white/55 hover:text-white/80'}`}
+                aria-pressed={showLyrics}
+                className={`grid place-items-center h-9 w-9 rounded-full transition-colors ${
+                  showLyrics ? 'text-[#00b4b4] bg-[#00b4b4]/15' : 'text-white/60 hover:text-white/90 hover:bg-white/10'
+                }`}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z" />
                 </svg>
               </button>
 
-              <button
-                onClick={() => share(currentTrack)}
-                disabled={!currentTrack}
-                title="Share this song"
-                className="transition-colors disabled:opacity-20 text-white/55 hover:text-white/80"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="18" cy="5" r="3" />
-                  <circle cx="6" cy="12" r="3" />
-                  <circle cx="18" cy="19" r="3" />
-                  <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" strokeLinecap="round" />
-                </svg>
-              </button>
+              <span className="w-px h-5 bg-white/10 mx-1" />
 
               <VolumeControl volume={volume} onVolumeChange={setVolume} />
             </div>
